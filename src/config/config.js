@@ -1,9 +1,9 @@
 module.exports = {
   development: {
     username: 'root',
-    password: 'mysecretpassword',
-    database: 'filmes_2026',
+    password: '',
+    database: 'agnus',
     host: 'localhost',
-    dialect: 'postgres', // ou mysql
+    dialect: 'mysql', 
   },
 };

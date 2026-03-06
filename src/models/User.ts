@@ -1,16 +1,15 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
-class User extends Model {
-  public id!: number;
+class Usuarios extends Model {
+  public id_usuario!: number;
   public name!: string;
-  public lastName: string | undefined;
   public email: string | undefined;
 }
 
-User.init(
+Usuarios.init(
   {
-    id: {
+    id_usuario: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
       primaryKey: true,
@@ -21,10 +20,7 @@ User.init(
     },
     email: {
       type: DataTypes.STRING
-    },
-    lastName: {
-      type: DataTypes.STRING
-    },
+    }, 
   },
   {
     sequelize,
@@ -32,4 +28,4 @@ User.init(
   },
 );
 
-export default User;
+export default Usuarios;
