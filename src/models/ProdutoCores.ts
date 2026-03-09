@@ -1,0 +1,66 @@
+import { DataTypes, Model } from "sequelize";
+import sequelize from "../config/database";
+
+class ProdutoCores extends Model {
+  public id_produto_cor!: number;
+  public id_produto!: number;
+  public nome!: string;
+  public codigo_rgb!: string;
+  public acrescimo!: number | null;
+  public data_criacao!: Date;
+  public data_alteracao!: Date;
+}
+
+ProdutoCores.init(
+  {
+    id_produto_cor: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    id_produto: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: "produtos",
+        key: "id_produto",
+      },
+    },
+    nome: {
+      type: DataTypes.STRING(60),
+      allowNull: false,
+    },
+    codigo_rgb: {
+      type: DataTypes.STRING(9),
+      allowNull: false,
+    },
+    acrescimo: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      defaultValue: 0,
+    },
+    data_criacao: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: DataTypes.NOW,
+    },
+    data_alteracao: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: DataTypes.NOW,
+    },
+  },
+  {
+    sequelize,
+    tableName: "produto_cores",
+    timestamps: false,
+    indexes: [
+      {
+        name: "FK_CORES_ID_PRODUTO",
+        fields: ["id_produto"],
+      },
+    ],
+  },
+);
+
+export default ProdutoCores;
