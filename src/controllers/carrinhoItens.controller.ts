@@ -5,25 +5,10 @@ import ProdutoCores from "../models/ProdutoCores";
 import ProdutoGrades from "../models/ProdutoGrades";
 
 class CarrinhoItensController {
-  static async findAll(req: Request, res: Response) {
-    const { id_carrinho } = req.query;
-    const where: { id_carrinho?: number } = {};
-
-    if (id_carrinho !== undefined) {
-      const parsedCarrinhoId = Number(id_carrinho);
-      if (Number.isNaN(parsedCarrinhoId)) {
-        return res.status(400).json({ message: "id_carrinho inválido." });
-      }
-      where.id_carrinho = parsedCarrinhoId;
-    }
-
-    const itens = await CarrinhoItens.findAll({ where });
-    return res.status(200).send(itens);
-  }
-
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const item = await CarrinhoItens.findByPk(Number(id));
+  
+  static async getByIdCart(req: Request, res: Response) {
+    const { id_cart } = req.params;
+    const item = await CarrinhoItens.findAll({ where: { id_carrinho: Number(id_cart) } });
 
     if (!item) {
       return res.status(404).json({ message: "Item do carrinho não encontrado" });

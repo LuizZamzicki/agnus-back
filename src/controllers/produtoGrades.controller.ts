@@ -3,25 +3,10 @@ import ProdutoGrades from "../models/ProdutoGrades";
 import Produtos from "../models/Produtos";
 
 class ProdutoGradesController {
-  static async findAll(req: Request, res: Response) {
-    const { id_produto } = req.query;
-    const where: { id_produto?: number } = {};
 
-    if (id_produto !== undefined) {
-      const parsedProdutoId = Number(id_produto);
-      if (Number.isNaN(parsedProdutoId)) {
-        return res.status(400).json({ message: "id_produto inválido." });
-      }
-      where.id_produto = parsedProdutoId;
-    }
-
-    const grades = await ProdutoGrades.findAll({ where });
-    return res.status(200).send(grades);
-  }
-
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const grade = await ProdutoGrades.findByPk(Number(id));
+ static async getByIdProduto(req: Request, res: Response) {
+    const { id_produto } = req.params;
+    const grade = await ProdutoGrades.findAll({ where: { id_produto: Number(id_produto) } });
 
     if (!grade) {
       return res.status(404).json({ message: "Grade do produto não encontrada" });

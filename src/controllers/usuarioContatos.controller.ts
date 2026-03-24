@@ -5,42 +5,16 @@ import Usuarios from "../models/Usuarios";
 class UsuarioContatosController {
   private static readonly TIPOS_VALIDOS = ["telefone", "celular", "email", "outro"];
 
-  static async findAll(req: Request, res: Response) {
-    const { id_usuario, tipo, principal } = req.query;
-    const where: { id_usuario?: number; tipo?: string; principal?: boolean } = {};
 
-    if (id_usuario !== undefined) {
-      const parsedUserId = Number(id_usuario);
-      if (Number.isNaN(parsedUserId)) {
-        return res.status(400).json({ message: "id_usuario inválido." });
-      }
-      where.id_usuario = parsedUserId;
-    }
+  static async getByIdUser(req: Request, res: Response) {
+    const { id_user } = req.params;
+    const contatos = await UsuarioContatos.findAll({ where: { id_usuario: Number(id_user) } });
 
-    if (tipo !== undefined) {
-      if (!UsuarioContatosController.TIPOS_VALIDOS.includes(String(tipo))) {
-        return res.status(400).json({ message: "tipo inválido." });
-      }
-      where.tipo = String(tipo);
-    }
-
-    if (principal !== undefined) {
-      where.principal = principal === "true";
-    }
-
-    const contatos = await UsuarioContatos.findAll({ where });
-    return res.status(200).send(contatos);
-  }
-
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const contato = await UsuarioContatos.findByPk(Number(id));
-
-    if (!contato) {
+    if (!contatos) {
       return res.status(404).json({ message: "Contato não encontrado" });
     }
 
-    return res.status(200).send(contato);
+    return res.status(200).send(contatos);
   }
 
   static async create(req: Request, res: Response) {

@@ -3,37 +3,19 @@ import UsuarioEnderecos from "../models/UsuarioEnderecos";
 import Usuarios from "../models/Usuarios";
 
 class UsuarioEnderecosController {
-  static async findAll(req: Request, res: Response) {
-    const { id_usuario, ativo } = req.query;
 
-    const where: { id_usuario?: number; ativo?: boolean } = {};
 
-    if (id_usuario !== undefined) {
-      const parsedUserId = Number(id_usuario);
-      if (Number.isNaN(parsedUserId)) {
-        return res.status(400).json({ message: "id_usuario inválido." });
-      }
-      where.id_usuario = parsedUserId;
+  static async getByIdUser(req: Request, res: Response) {
+    const { id_user } = req.params;
+    const enderecos = await UsuarioEnderecos.findAll({ where: { id_usuario: Number(id_user) } });
+  
+    if (!enderecos) {
+      return res.status(404).json({ message: "Endereços não encontrados" });
     }
 
-    if (ativo !== undefined) {
-      where.ativo = ativo === "1" || ativo === "true";
-    }
-
-    const enderecos = await UsuarioEnderecos.findAll({ where });
     return res.status(200).send(enderecos);
   }
 
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const endereco = await UsuarioEnderecos.findByPk(Number(id));
-
-    if (!endereco) {
-      return res.status(404).json({ message: "Endereço não encontrado" });
-    }
-
-    return res.status(200).send(endereco);
-  }
 
   static async create(req: Request, res: Response) {
     const {

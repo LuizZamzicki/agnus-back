@@ -4,33 +4,10 @@ import ProdutoFotos from "../models/ProdutoFotos";
 import Produtos from "../models/Produtos";
 
 class ProdutoFotosController {
-  static async findAll(req: Request, res: Response) {
-    const { id_produto, id_produto_cor } = req.query;
-    const where: { id_produto?: number; id_produto_cor?: number } = {};
-
-    if (id_produto !== undefined) {
-      const parsedProdutoId = Number(id_produto);
-      if (Number.isNaN(parsedProdutoId)) {
-        return res.status(400).json({ message: "id_produto inválido." });
-      }
-      where.id_produto = parsedProdutoId;
-    }
-
-    if (id_produto_cor !== undefined) {
-      const parsedCorId = Number(id_produto_cor);
-      if (Number.isNaN(parsedCorId)) {
-        return res.status(400).json({ message: "id_produto_cor inválido." });
-      }
-      where.id_produto_cor = parsedCorId;
-    }
-
-    const fotos = await ProdutoFotos.findAll({ where });
-    return res.status(200).send(fotos);
-  }
-
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const foto = await ProdutoFotos.findByPk(Number(id));
+ 
+  static async getByIdProduto(req: Request, res: Response) {
+    const { id_produto } = req.params;
+    const foto = await ProdutoFotos.findAll({ where: { id_produto: Number(id_produto) } });
 
     if (!foto) {
       return res.status(404).json({ message: "Foto do produto não encontrada" });

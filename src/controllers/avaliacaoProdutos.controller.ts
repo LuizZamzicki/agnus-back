@@ -4,33 +4,11 @@ import Produtos from "../models/Produtos";
 import Usuarios from "../models/Usuarios";
 
 class AvaliacaoProdutosController {
-  static async findAll(req: Request, res: Response) {
-    const { id_produto, id_usuario } = req.query;
-    const where: { id_produto?: number; id_usuario?: number } = {};
+ 
 
-    if (id_produto !== undefined) {
-      const parsedProdutoId = Number(id_produto);
-      if (Number.isNaN(parsedProdutoId)) {
-        return res.status(400).json({ message: "id_produto inválido." });
-      }
-      where.id_produto = parsedProdutoId;
-    }
-
-    if (id_usuario !== undefined) {
-      const parsedUsuarioId = Number(id_usuario);
-      if (Number.isNaN(parsedUsuarioId)) {
-        return res.status(400).json({ message: "id_usuario inválido." });
-      }
-      where.id_usuario = parsedUsuarioId;
-    }
-
-    const avaliacoes = await AvaliacaoProdutos.findAll({ where });
-    return res.status(200).send(avaliacoes);
-  }
-
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const avaliacao = await AvaliacaoProdutos.findByPk(Number(id));
+  static async getByIdProduto(req: Request, res: Response) {
+    const { id_produto } = req.params;
+    const avaliacao = await AvaliacaoProdutos.findAll({ where: { id_produto: Number(id_produto) } });
 
     if (!avaliacao) {
       return res.status(404).json({ message: "Avaliação não encontrada" });

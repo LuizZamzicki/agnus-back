@@ -29,15 +29,13 @@ router.delete('/users/:id', UsersController.remove);
 router.put('/users/:id', UsersController.update);
 router.patch('/users/:id/password', UsersController.updatePassword);
 
-router.get('/user-addresses', UsuarioEnderecosController.findAll);
 router.post('/user-addresses', UsuarioEnderecosController.create);
-router.get('/user-addresses/:id', UsuarioEnderecosController.getById);
+router.get('/user-addresses/:id_user', UsuarioEnderecosController.getByIdUser);
 router.put('/user-addresses/:id', UsuarioEnderecosController.update);
 router.delete('/user-addresses/:id', UsuarioEnderecosController.remove);
 
-router.get('/user-contacts', UsuarioContatosController.findAll);
 router.post('/user-contacts', UsuarioContatosController.create);
-router.get('/user-contacts/:id', UsuarioContatosController.getById);
+router.get('/user-contacts/:id_user', UsuarioContatosController.getByIdUser);
 router.put('/user-contacts/:id', UsuarioContatosController.update);
 router.delete('/user-contacts/:id', UsuarioContatosController.remove);
 
@@ -53,23 +51,30 @@ router.get('/products/:id', ProdutosController.getById);
 router.put('/products/:id', ProdutosController.update);
 router.delete('/products/:id', ProdutosController.remove);
 
-router.get('/product-colors', ProdutoCoresController.findAll);
 router.post('/product-colors', ProdutoCoresController.create);
-router.get('/product-colors/:id', ProdutoCoresController.getById);
+router.get('/product-colors/:id_produto', ProdutoCoresController.getByIdProduto);
 router.put('/product-colors/:id', ProdutoCoresController.update);
 router.delete('/product-colors/:id', ProdutoCoresController.remove);
 
-router.get('/product-photos', ProdutoFotosController.findAll);
 router.post('/product-photos', ProdutoFotosController.create);
-router.get('/product-photos/:id', ProdutoFotosController.getById);
+router.get('/product-photos/:id_produto', ProdutoFotosController.getByIdProduto);
 router.put('/product-photos/:id', ProdutoFotosController.update);
 router.delete('/product-photos/:id', ProdutoFotosController.remove);
 
-router.get('/product-grades', ProdutoGradesController.findAll);
 router.post('/product-grades', ProdutoGradesController.create);
-router.get('/product-grades/:id', ProdutoGradesController.getById);
+router.get('/product-grades/:id_produto', ProdutoGradesController.getByIdProduto);
 router.put('/product-grades/:id', ProdutoGradesController.update);
 router.delete('/product-grades/:id', ProdutoGradesController.remove);
+
+router.post('/product-reviews', AvaliacaoProdutosController.create);
+router.get('/product-reviews/:id_produto', AvaliacaoProdutosController.getByIdProduto);
+router.put('/product-reviews/:id', AvaliacaoProdutosController.update);
+router.delete('/product-reviews/:id', AvaliacaoProdutosController.remove);
+
+router.post('/product-review-photos', AvaliacaoFotosController.create);
+router.get('/product-review-photos/:id_review', AvaliacaoFotosController.getByIdReview);
+router.put('/product-review-photos/:id', AvaliacaoFotosController.update);
+router.delete('/product-review-photos/:id', AvaliacaoFotosController.remove);
 
 router.get('/carts', CarrinhosController.findAll);
 router.post('/carts', CarrinhosController.create);
@@ -77,9 +82,8 @@ router.get('/carts/:id', CarrinhosController.getById);
 router.put('/carts/:id', CarrinhosController.update);
 router.delete('/carts/:id', CarrinhosController.remove);
 
-router.get('/cart-items', CarrinhoItensController.findAll);
 router.post('/cart-items', CarrinhoItensController.create);
-router.get('/cart-items/:id', CarrinhoItensController.getById);
+router.get('/cart-items/:id_cart', CarrinhoItensController.getByIdCart);
 router.put('/cart-items/:id', CarrinhoItensController.update);
 router.delete('/cart-items/:id', CarrinhoItensController.remove);
 
@@ -89,23 +93,10 @@ router.get('/orders/:id', PedidosController.getById);
 router.put('/orders/:id', PedidosController.update);
 router.delete('/orders/:id', PedidosController.remove);
 
-router.get('/order-items', PedidoItensController.findAll);
 router.post('/order-items', PedidoItensController.create);
-router.get('/order-items/:id', PedidoItensController.getById);
+router.get('/order-items/:id_order', PedidoItensController.getByIdOrder);
 router.put('/order-items/:id', PedidoItensController.update);
 router.delete('/order-items/:id', PedidoItensController.remove);
-
-router.get('/product-reviews', AvaliacaoProdutosController.findAll);
-router.post('/product-reviews', AvaliacaoProdutosController.create);
-router.get('/product-reviews/:id', AvaliacaoProdutosController.getById);
-router.put('/product-reviews/:id', AvaliacaoProdutosController.update);
-router.delete('/product-reviews/:id', AvaliacaoProdutosController.remove);
-
-router.get('/product-review-photos', AvaliacaoFotosController.findAll);
-router.post('/product-review-photos', AvaliacaoFotosController.create);
-router.get('/product-review-photos/:id', AvaliacaoFotosController.getById);
-router.put('/product-review-photos/:id', AvaliacaoFotosController.update);
-router.delete('/product-review-photos/:id', AvaliacaoFotosController.remove);
 
 router.post('/auth/login', AuthController.login);
 router.get('/auth/me', authenticateToken, AuthController.me);

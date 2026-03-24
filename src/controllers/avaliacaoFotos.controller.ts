@@ -3,25 +3,10 @@ import AvaliacaoFotos from "../models/AvaliacaoFotos";
 import AvaliacaoProdutos from "../models/AvaliacaoProdutos";
 
 class AvaliacaoFotosController {
-  static async findAll(req: Request, res: Response) {
-    const { id_avaliacao_produto } = req.query;
-    const where: { id_avaliacao_produto?: number } = {};
 
-    if (id_avaliacao_produto !== undefined) {
-      const parsedAvaliacaoId = Number(id_avaliacao_produto);
-      if (Number.isNaN(parsedAvaliacaoId)) {
-        return res.status(400).json({ message: "id_avaliacao_produto inválido." });
-      }
-      where.id_avaliacao_produto = parsedAvaliacaoId;
-    }
-
-    const fotos = await AvaliacaoFotos.findAll({ where });
-    return res.status(200).send(fotos);
-  }
-
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const foto = await AvaliacaoFotos.findByPk(Number(id));
+  static async getByIdReview(req: Request, res: Response) {
+    const { id_review } = req.params;
+    const foto = await AvaliacaoFotos.findAll({ where: { id_avaliacao_produto: Number(id_review) } });
 
     if (!foto) {
       return res.status(404).json({ message: "Foto da avaliação não encontrada" });

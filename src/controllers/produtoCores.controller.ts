@@ -3,25 +3,10 @@ import ProdutoCores from "../models/ProdutoCores";
 import Produtos from "../models/Produtos";
 
 class ProdutoCoresController {
-  static async findAll(req: Request, res: Response) {
-    const { id_produto } = req.query;
-    const where: { id_produto?: number } = {};
 
-    if (id_produto !== undefined) {
-      const parsedProdutoId = Number(id_produto);
-      if (Number.isNaN(parsedProdutoId)) {
-        return res.status(400).json({ message: "id_produto inválido." });
-      }
-      where.id_produto = parsedProdutoId;
-    }
-
-    const cores = await ProdutoCores.findAll({ where });
-    return res.status(200).send(cores);
-  }
-
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const cor = await ProdutoCores.findByPk(Number(id));
+  static async getByIdProduto(req: Request, res: Response) {
+    const { id_produto } = req.params;
+    const cor = await ProdutoCores.findAll({ where: { id_produto: Number(id_produto) } });
 
     if (!cor) {
       return res.status(404).json({ message: "Cor do produto não encontrada" });

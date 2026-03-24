@@ -5,25 +5,10 @@ import ProdutoCores from "../models/ProdutoCores";
 import ProdutoGrades from "../models/ProdutoGrades";
 
 class PedidoItensController {
-  static async findAll(req: Request, res: Response) {
-    const { id_pedido } = req.query;
-    const where: { id_pedido?: number } = {};
 
-    if (id_pedido !== undefined) {
-      const parsedPedidoId = Number(id_pedido);
-      if (Number.isNaN(parsedPedidoId)) {
-        return res.status(400).json({ message: "id_pedido inválido." });
-      }
-      where.id_pedido = parsedPedidoId;
-    }
-
-    const itens = await PedidoItens.findAll({ where });
-    return res.status(200).send(itens);
-  }
-
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const item = await PedidoItens.findByPk(Number(id));
+  static async getByIdOrder(req: Request, res: Response) {
+    const { id_order } = req.params;
+    const item = await PedidoItens.findAll({ where: { id_pedido: Number(id_order) } });
 
     if (!item) {
       return res.status(404).json({ message: "Item do pedido não encontrado" });
