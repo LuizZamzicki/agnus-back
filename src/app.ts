@@ -46,6 +46,7 @@ router.put('/categories/:id', CategoriasController.update);
 router.delete('/categories/:id', CategoriasController.remove);
 
 router.get('/products', ProdutosController.findAll);
+router.get('/products/catalog', ProdutosController.catalog);
 router.post('/products', ProdutosController.create);
 router.get('/products/:id', ProdutosController.getById);
 router.put('/products/:id', ProdutosController.update);

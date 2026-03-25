@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import { QueryTypes } from "sequelize";
+import sequelize from "../config/database";
 import Produtos from "../models/Produtos";
 import Categorias from "../models/Categorias";
 
@@ -25,6 +27,75 @@ class ProdutosController {
 
     const produtos = await Produtos.findAll({ where });
     return res.status(200).send(produtos);
+  }
+
+  static async catalog(req: Request, res: Response) {
+    const { id_categoria, ativo } = req.query;
+    const whereClauses: string[] = [];
+    const replacements: { id_categoria?: number; ativo?: boolean } = {};
+
+    if (id_categoria !== undefined) {
+      if (id_categoria === "null") {
+        whereClauses.push("p.id_categoria IS NULL");
+      } else {
+        const parsedCategoriaId = Number(id_categoria);
+        if (Number.isNaN(parsedCategoriaId)) {
+          return res.status(400).json({ message: "id_categoria inválido." });
+        }
+        whereClauses.push("p.id_categoria = :id_categoria");
+        replacements.id_categoria = parsedCategoriaId;
+      }
+    }
+
+    if (ativo !== undefined) {
+      whereClauses.push("p.ativo = :ativo");
+      replacements.ativo = ativo === "true";
+    }
+
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+    const rows = await sequelize.query(
+      `
+      SELECT
+        p.id_produto,
+        p.nome,
+        p.preco_base,
+        p.ativo,
+        p.id_categoria,
+        c.nome AS categoria_nome,
+        IFNULL(
+          CONCAT(
+            '[',
+            (
+              SELECT GROUP_CONCAT(JSON_QUOTE(pf.caminho_url) ORDER BY pf.id_produto_foto ASC SEPARATOR ',')
+              FROM produto_fotos pf
+              WHERE pf.id_produto = p.id_produto
+            ),
+            ']'
+          ),
+          '[]'
+        ) AS imagens_json
+      FROM produtos p
+      LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+      ${whereSql}
+      ORDER BY p.id_produto ASC
+      `,
+      {
+        replacements,
+        type: QueryTypes.SELECT,
+      },
+    );
+
+    const parsedRows = (rows as Array<Record<string, unknown>>).map((row) => {
+      const imagensJson = typeof row.imagens_json === "string" ? row.imagens_json : "[]";
+      return {
+        ...row,
+        imagens: JSON.parse(imagensJson),
+        imagens_json: undefined,
+      };
+    });
+
+    return res.status(200).json(parsedRows);
   }
 
   static async getById(req: Request, res: Response) {
