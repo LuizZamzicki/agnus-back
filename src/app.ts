@@ -1,4 +1,5 @@
 import express, { Request, Response, Router } from 'express';
+import path from 'path';
 import AvaliacaoFotosController from './controllers/avaliacaoFotos.controller';
 import AvaliacaoProdutosController from './controllers/avaliacaoProdutos.controller';
 import AuthController from './controllers/auth.controller';
@@ -15,19 +16,22 @@ import UsuarioContatosController from './controllers/usuarioContatos.controller'
 import UsuarioEnderecosController from './controllers/usuarioEnderecos.controller';
 import UserPasswordHistoryController from './controllers/usuarioSenhasHistorico.controller';
 import UsersController from './controllers/usuarios.controller';
-import authenticateToken from './middlewares/auth.middleware';
+import authenticateToken, { authorizeRoles, authorizeSelfOrAdmin } from './middlewares/auth.middleware';
+import { uploadAny } from './middlewares/upload.middleware';
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use('/produto_fotos', express.static(path.resolve(process.cwd(), 'produto_fotos')));
 
 const router: Router = Router();
 
-router.get('/users', UsersController.findAll);
 router.post('/users', UsersController.create);
-router.get('/users/:id', UsersController.getById);
-router.delete('/users/:id', UsersController.remove);
-router.put('/users/:id', UsersController.update);
-router.patch('/users/:id/password', UsersController.updatePassword);
+router.get('/users', authenticateToken, authorizeRoles('administrador'), UsersController.findAll);
+router.get('/users/:id', authenticateToken, authorizeSelfOrAdmin('id'), UsersController.getById);
+router.delete('/users/:id', authenticateToken, authorizeRoles('administrador'), UsersController.remove);
+router.put('/users/:id', authenticateToken, authorizeSelfOrAdmin('id'), UsersController.update);
+router.patch('/users/:id/password', authenticateToken, authorizeSelfOrAdmin('id'), UsersController.updatePassword);
 
 router.post('/user-addresses', UsuarioEnderecosController.create);
 router.get('/user-addresses/:id_user', UsuarioEnderecosController.getByIdUser);
@@ -57,9 +61,9 @@ router.get('/product-colors/:id_produto', ProdutoCoresController.getByIdProduto)
 router.put('/product-colors/:id', ProdutoCoresController.update);
 router.delete('/product-colors/:id', ProdutoCoresController.remove);
 
-router.post('/product-photos', ProdutoFotosController.create);
+router.post('/product-photos', uploadAny, ProdutoFotosController.create);
 router.get('/product-photos/:id_produto', ProdutoFotosController.getByIdProduto);
-router.put('/product-photos/:id', ProdutoFotosController.update);
+router.put('/product-photos/:id', uploadAny, ProdutoFotosController.update);
 router.delete('/product-photos/:id', ProdutoFotosController.remove);
 
 router.post('/product-grades', ProdutoGradesController.create);

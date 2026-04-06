@@ -1,10 +1,22 @@
 import { Request, Response } from "express";
 import Categorias from "../models/Categorias";
+import { buildPaginationMeta, parsePagination } from "../utils/pagination";
 
 class CategoriasController {
   static async findAll(req: Request, res: Response) {
-    const categorias = await Categorias.findAll();
-    return res.status(200).send(categorias);
+    const pagination = parsePagination(req.query);
+    if (!pagination) return res.status(400).json({ message: "page e limit devem ser inteiros positivos." });
+
+    const { count, rows } = await Categorias.findAndCountAll({
+      limit: pagination.limit,
+      offset: pagination.offset,
+      order: [["id_categoria", "ASC"]],
+    });
+
+    return res.status(200).json({
+      data: rows,
+      pagination: buildPaginationMeta(pagination.page, pagination.limit, count),
+    });
   }
 
   static async getById(req: Request, res: Response) {
@@ -19,7 +31,7 @@ class CategoriasController {
   }
 
   static async create(req: Request, res: Response) {
-    const { nome } = req.body;
+    const { nome } = req.body ?? {};
 
     if (!nome) {
       return res.status(400).json({ message: "nome é obrigatório." });
@@ -36,7 +48,7 @@ class CategoriasController {
 
   static async update(req: Request, res: Response) {
     const { id } = req.params;
-    const { nome } = req.body;
+    const { nome } = req.body ?? {};
 
     const categoria = await Categorias.findByPk(Number(id));
     if (!categoria) {

@@ -1,0 +1,24 @@
+{
+  "development": {
+    "username": "root",
+    "password": "",
+    "database": "agnus",
+    "host": "localhost",
+    "dialect": "mysql"
+  },
+  "test": {
+    "use_env_variable": "DB_URL",
+    "username": "root",
+    "password": "",
+    "database": "agnus_test",
+    "host": "localhost",
+    "dialect": "mysql"
+  },
+  "production": {
+    "username": "root",
+    "password": "",
+    "database": "agnus",
+    "host": "localhost",
+    "dialect": "mysql"
+  }
+}

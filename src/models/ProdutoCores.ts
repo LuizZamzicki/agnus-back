@@ -1,5 +1,6 @@
 import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
+import { normalizeRgbColor } from "../utils/color";
 
 class ProdutoCores extends Model {
   public id_produto_cor!: number;
@@ -31,8 +32,15 @@ ProdutoCores.init(
       allowNull: false,
     },
     codigo_rgb: {
-      type: DataTypes.STRING(9),
+      type: DataTypes.STRING(16),
       allowNull: false,
+      set(value: unknown) {
+        const normalized = normalizeRgbColor(String(value ?? ""));
+        if (!normalized) {
+          throw new Error("codigo_rgb invalido. Use formato RGB valido.");
+        }
+        this.setDataValue("codigo_rgb", normalized);
+      },
     },
     acrescimo: {
       type: DataTypes.DECIMAL(10, 2),

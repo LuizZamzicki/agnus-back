@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import argon2 from "argon2";
 import User from "../models/Usuarios";
+import { buildPaginationMeta, parsePagination } from "../utils/pagination";
 import UsuarioSenhasHistoricoController from "./usuarioSenhasHistorico.controller";
 
 class UsuariosController {
@@ -15,10 +16,19 @@ class UsuariosController {
   }
 
   static async findAll(req: Request, res: Response) {
-    const users = await User.findAll();
-    const sanitizedUsers = users.map((user) => UsuariosController.sanitizeUser(user));
+    const pagination = parsePagination(req.query);
+    if (!pagination) return res.status(400).json({ message: "page e limit devem ser inteiros positivos." });
 
-    res.send(sanitizedUsers);
+    const { count, rows } = await User.findAndCountAll({
+      limit: pagination.limit,
+      offset: pagination.offset,
+      order: [["id_usuario", "ASC"]],
+    });
+    const data = rows.map((user) => UsuariosController.sanitizeUser(user));
+    return res.status(200).json({
+      data,
+      pagination: buildPaginationMeta(pagination.page, pagination.limit, count),
+    });
   }
 
   static async getById(req: Request, res: Response) {
