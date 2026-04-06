@@ -32,7 +32,11 @@ ProdutoCores.init(
       allowNull: false,
     },
     codigo_rgb: {
+<<<<<<< HEAD
       type: DataTypes.STRING(16),
+=======
+      type: DataTypes.STRING(12),
+>>>>>>> 20ec4a2 (Commit)
       allowNull: false,
       set(value: unknown) {
         const normalized = normalizeRgbColor(String(value ?? ""));

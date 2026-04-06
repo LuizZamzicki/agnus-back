@@ -18,10 +18,15 @@ import UserPasswordHistoryController from './controllers/usuarioSenhasHistorico.
 import UsersController from './controllers/usuarios.controller';
 import authenticateToken, { authorizeRoles, authorizeSelfOrAdmin } from './middlewares/auth.middleware';
 import { uploadAny } from './middlewares/upload.middleware';
+import cors from "cors";
 
 const app = express();
+
+app.use(cors());
+
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
 app.use('/produto_fotos', express.static(path.resolve(process.cwd(), 'produto_fotos')));
 
 const router: Router = Router();
