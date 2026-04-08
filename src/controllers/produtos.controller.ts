@@ -14,7 +14,22 @@ import { normalizeRgbColor } from "../utils/color";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
 import { saveProdutoFotoBits } from "../utils/produtoFotoStorage";
 
+type CatalogFilters = {
+  pagination: {
+    page: number;
+    limit: number;
+    offset: number;
+  };
+  whereSql: string;
+  replacements: {
+    id_categoria?: number;
+    ativo?: boolean;
+  };
+};
+
 class ProdutosController {
+  private static readonly SALES_ORDER_STATUSES = ["pago", "enviado", "entregue"] as const;
+
   private static hasCategoryField(body: any) {
     if (!body || typeof body !== "object") {
       return false;
@@ -145,6 +160,52 @@ class ProdutosController {
     return savedPaths;
   }
 
+  private static buildCatalogFilters(query: Request["query"]): CatalogFilters | { message: string } {
+    const { id_categoria, ativo } = query;
+    const pagination = parsePagination(query);
+    const whereClauses: string[] = [];
+    const replacements: CatalogFilters["replacements"] = {};
+
+    if (!pagination) {
+      return { message: "page e limit devem ser inteiros positivos." };
+    }
+
+    if (id_categoria !== undefined) {
+      if (id_categoria === "null") {
+        whereClauses.push("p.id_categoria IS NULL");
+      } else {
+        const parsedCategoriaId = Number(id_categoria);
+        if (Number.isNaN(parsedCategoriaId)) {
+          return { message: "id_categoria invalido." };
+        }
+        whereClauses.push("p.id_categoria = :id_categoria");
+        replacements.id_categoria = parsedCategoriaId;
+      }
+    }
+
+    if (ativo !== undefined) {
+      whereClauses.push("p.ativo = :ativo");
+      replacements.ativo = ativo === "true";
+    }
+
+    return {
+      pagination,
+      whereSql: whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "",
+      replacements,
+    };
+  }
+
+  private static parseCatalogRows(rows: Array<Record<string, unknown>>) {
+    return rows.map((row) => {
+      const imagensJson = typeof row.imagens_json === "string" ? row.imagens_json : "[]";
+      return {
+        ...row,
+        imagens: JSON.parse(imagensJson),
+        imagens_json: undefined,
+      };
+    });
+  }
+
   static async findAll(req: Request, res: Response) {
     const { id_categoria, ativo } = req.query;
     const pagination = parsePagination(req.query);
@@ -183,34 +244,12 @@ class ProdutosController {
   }
 
   static async catalog(req: Request, res: Response) {
-    const { id_categoria, ativo } = req.query;
-    const pagination = parsePagination(req.query);
-    const whereClauses: string[] = [];
-    const replacements: { id_categoria?: number; ativo?: boolean } = {};
-
-    if (!pagination) {
-      return res.status(400).json({ message: "page e limit devem ser inteiros positivos." });
+    const filters = ProdutosController.buildCatalogFilters(req.query);
+    if ("message" in filters) {
+      return res.status(400).json({ message: filters.message });
     }
 
-    if (id_categoria !== undefined) {
-      if (id_categoria === "null") {
-        whereClauses.push("p.id_categoria IS NULL");
-      } else {
-        const parsedCategoriaId = Number(id_categoria);
-        if (Number.isNaN(parsedCategoriaId)) {
-          return res.status(400).json({ message: "id_categoria invalido." });
-        }
-        whereClauses.push("p.id_categoria = :id_categoria");
-        replacements.id_categoria = parsedCategoriaId;
-      }
-    }
-
-    if (ativo !== undefined) {
-      whereClauses.push("p.ativo = :ativo");
-      replacements.ativo = ativo === "true";
-    }
-
-    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+    const { pagination, whereSql, replacements } = filters;
     const countRows = await sequelize.query(
       `SELECT COUNT(*) AS total FROM produtos p ${whereSql}`,
       { replacements, type: QueryTypes.SELECT },
@@ -255,17 +294,90 @@ class ProdutosController {
       },
     );
 
-    const parsedRows = (rows as Array<Record<string, unknown>>).map((row) => {
-      const imagensJson = typeof row.imagens_json === "string" ? row.imagens_json : "[]";
-      return {
-        ...row,
-        imagens: JSON.parse(imagensJson),
-        imagens_json: undefined,
-      };
-    });
+    const parsedRows = ProdutosController.parseCatalogRows(rows as Array<Record<string, unknown>>);
 
     return res.status(200).json({
       data: parsedRows,
+      pagination: buildPaginationMeta(pagination.page, pagination.limit, total),
+    });
+  }
+
+  static async bestSellers(req: Request, res: Response) {
+    const filters = ProdutosController.buildCatalogFilters(req.query);
+    if ("message" in filters) {
+      return res.status(400).json({ message: filters.message });
+    }
+
+    const { pagination, whereSql, replacements } = filters;
+    const salesStatusSql = ProdutosController.SALES_ORDER_STATUSES.map((status) => `'${status}'`).join(", ");
+    const countRows = await sequelize.query(
+      `
+      SELECT COUNT(*) AS total
+      FROM (
+        SELECT p.id_produto
+        FROM produtos p
+        INNER JOIN produto_cores pc ON pc.id_produto = p.id_produto
+        INNER JOIN pedido_itens pi ON pi.id_produto_cor = pc.id_produto_cor
+        INNER JOIN pedidos pe ON pe.id_pedido = pi.id_pedido
+        ${whereSql ? `${whereSql} AND pe.status IN (${salesStatusSql})` : `WHERE pe.status IN (${salesStatusSql})`}
+        GROUP BY p.id_produto
+      ) AS produtos_mais_vendidos
+      `,
+      { replacements, type: QueryTypes.SELECT },
+    );
+    const total = Number((countRows[0] as Record<string, unknown>)?.total ?? 0);
+    const queryReplacements = {
+      ...replacements,
+      limit: pagination.limit,
+      offset: pagination.offset,
+    };
+
+    const rows = await sequelize.query(
+      `
+      SELECT
+        p.id_produto,
+        p.nome,
+        p.preco_base,
+        p.ativo,
+        p.id_categoria,
+        c.nome AS categoria_nome,
+        vendas.quantidade_vendida,
+        IFNULL(
+          CONCAT(
+            '[',
+            (
+              SELECT GROUP_CONCAT(JSON_QUOTE(pf.caminho_url) ORDER BY pf.id_produto_foto ASC SEPARATOR ',')
+              FROM produto_fotos pf
+              WHERE pf.id_produto = p.id_produto
+            ),
+            ']'
+          ),
+          '[]'
+        ) AS imagens_json
+      FROM produtos p
+      INNER JOIN (
+        SELECT
+          pc.id_produto,
+          SUM(pi.quantidade) AS quantidade_vendida
+        FROM pedido_itens pi
+        INNER JOIN pedidos pe ON pe.id_pedido = pi.id_pedido
+        INNER JOIN produto_cores pc ON pc.id_produto_cor = pi.id_produto_cor
+        WHERE pe.status IN (${salesStatusSql})
+        GROUP BY pc.id_produto
+      ) vendas ON vendas.id_produto = p.id_produto
+      LEFT JOIN categorias c ON c.id_categoria = p.id_categoria
+      ${whereSql}
+      ORDER BY vendas.quantidade_vendida DESC, p.id_produto ASC
+      LIMIT :limit OFFSET :offset
+      `,
+      {
+        replacements: queryReplacements,
+        type: QueryTypes.SELECT,
+      },
+    );
+
+    return res.status(200).json({
+      data: ProdutosController.parseCatalogRows(rows as Array<Record<string, unknown>>),
       pagination: buildPaginationMeta(pagination.page, pagination.limit, total),
     });
   }

@@ -51,6 +51,7 @@ router.delete('/categories/:id', CategoriasController.remove);
 
 router.get('/products', ProdutosController.findAll);
 router.get('/products/catalog', ProdutosController.catalog);
+router.get('/products/best-sellers', ProdutosController.bestSellers);
 router.post('/products', ProdutosController.create);
 router.get('/products/:id', ProdutosController.getById);
 router.put('/products/:id', ProdutosController.update);
