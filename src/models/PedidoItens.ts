@@ -2,15 +2,15 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class PedidoItens extends Model {
-  public id_pedido_item!: number;
-  public id_pedido!: number;
-  public id_produto_cor!: number;
-  public id_produto_grade!: number;
-  public quantidade!: number;
-  public preco_unitario!: number;
-  public subtotal!: number | null;
-  public data_criacao!: Date;
-  public data_alteracao!: Date;
+  declare id_pedido_item: number;
+  declare id_pedido: number;
+  declare id_produto_cor: number;
+  declare id_produto_grade: number;
+  declare quantidade: number;
+  declare preco_unitario: number;
+  declare subtotal: number | null;
+  declare data_criacao: Date;
+  declare data_alteracao: Date;
 }
 
 PedidoItens.init(

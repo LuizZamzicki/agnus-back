@@ -50,6 +50,7 @@ class PedidoItensController {
     }
 
     const produtoContext = await resolveProdutoContext(Number(id_produto_cor), Number(id_produto_grade));
+
     if (!produtoContext) {
       return res.status(404).json({ message: "Produto vinculado ao item não encontrado" });
     }

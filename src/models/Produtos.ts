@@ -2,16 +2,16 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class Produtos extends Model {
-  public id_produto!: number;
-  public id_categoria!: number | null;
-  public nome!: string;
-  public descricao!: string | null;
-  public preco_custo!: number | null;
-  public preco_base!: number;
-  public margem_lucro!: number | null;
-  public ativo!: boolean;
-  public data_criacao!: Date;
-  public data_alteracao!: Date;
+  declare id_produto: number;
+  declare id_categoria: number | null;
+  declare nome: string;
+  declare descricao: string | null;
+  declare preco_custo: number | null;
+  declare preco_base: number;
+  declare margem_lucro: number | null;
+  declare ativo: boolean;
+  declare data_criacao: Date;
+  declare data_alteracao: Date;
 }
 
 Produtos.init(

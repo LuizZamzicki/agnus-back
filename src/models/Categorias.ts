@@ -2,10 +2,10 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class Categorias extends Model {
-  public id_categoria!: number;
-  public nome!: string;
-  public data_criacao!: Date;
-  public data_alteracao!: Date;
+  declare id_categoria: number;
+  declare nome: string;
+  declare data_criacao: Date;
+  declare data_alteracao: Date;
 }
 
 Categorias.init(

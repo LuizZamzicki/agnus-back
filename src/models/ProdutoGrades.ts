@@ -2,12 +2,12 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class ProdutoGrades extends Model {
-  public id_produto_grade!: number;
-  public id_produto!: number;
-  public nome!: string;
-  public acrescimo!: number | null;
-  public data_criacao!: Date;
-  public data_alteracao!: Date;
+  declare id_produto_grade: number;
+  declare id_produto: number;
+  declare nome: string;
+  declare acrescimo: number | null;
+  declare data_criacao: Date;
+  declare data_alteracao: Date;
 }
 
 ProdutoGrades.init(

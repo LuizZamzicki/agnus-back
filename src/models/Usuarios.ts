@@ -2,15 +2,15 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class Usuarios extends Model {
-  public id_usuario!: number;
-  public nome!: string;
-  public cpf!: string | null;
-  public email!: string;
-  public senha!: string;
-  public google_id!: string | null;
-  public tipo!: "cliente" | "administrador";
-  public data_criacao!: Date;
-  public data_alteracao!: Date;
+  declare id_usuario: number;
+  declare nome: string;
+  declare cpf: string | null;
+  declare email: string;
+  declare senha: string;
+  declare google_id: string | null;
+  declare tipo: "cliente" | "administrador";
+  declare data_criacao: Date;
+  declare data_alteracao: Date;
 }
 
 Usuarios.init(

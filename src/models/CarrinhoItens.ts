@@ -2,14 +2,14 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class CarrinhoItens extends Model {
-  public id_carrinho_item!: number;
-  public id_carrinho!: number;
-  public id_produto_cor!: number;
-  public id_produto_grade!: number;
-  public quantidade!: number | null;
-  public preco_unitario!: number;
-  public data_criacao!: Date;
-  public data_alteracao!: Date;
+  declare id_carrinho_item: number;
+  declare id_carrinho: number;
+  declare id_produto_cor: number;
+  declare id_produto_grade: number;
+  declare quantidade: number | null;
+  declare preco_unitario: number;
+  declare data_criacao: Date;
+  declare data_alteracao: Date;
 }
 
 CarrinhoItens.init(

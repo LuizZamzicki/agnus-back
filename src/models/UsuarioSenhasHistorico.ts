@@ -2,10 +2,10 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class UsuarioSenhasHistorico extends Model {
-  public id_usuario_senha_hist!: number;
-  public id_usuario!: number;
-  public senha!: string;
-  public data_criacao!: Date;
+  declare id_usuario_senha_hist: number;
+  declare id_usuario: number;
+  declare senha: string;
+  declare data_criacao: Date;
 }
 
 UsuarioSenhasHistorico.init(

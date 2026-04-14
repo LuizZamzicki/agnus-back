@@ -1,4 +1,3 @@
-import { Op } from "sequelize";
 import ProdutoCores from "../models/ProdutoCores";
 import ProdutoFotos from "../models/ProdutoFotos";
 import ProdutoGrades from "../models/ProdutoGrades";
@@ -54,6 +53,7 @@ export const resolveProdutoContext = async (
   }
 
   const produto = await Produtos.findByPk(cor.id_produto);
+  
   if (!produto) {
     return null;
   }
@@ -84,70 +84,17 @@ export const resolveProdutoContext = async (
 };
 
 export const enrichItemsWithProductData = async <T extends ItemLike>(items: T[]) => {
-  if (items.length === 0) {
+  if (!Array.isArray(items) || items.length === 0) {
     return [];
   }
-
-  const corIds = [...new Set(items.map((item) => Number(item.id_produto_cor)).filter(Boolean))];
-  const gradeIds = [
-    ...new Set(items.map((item) => Number(item.id_produto_grade)).filter(Boolean)),
-  ];
-
-  const [cores, grades] = await Promise.all([
-    ProdutoCores.findAll({
-      where: { id_produto_cor: { [Op.in]: corIds } },
-    }),
-    ProdutoGrades.findAll({
-      where: { id_produto_grade: { [Op.in]: gradeIds } },
-    }),
-  ]);
-
-  const coresById = new Map(cores.map((cor) => [cor.id_produto_cor, cor]));
-  const gradesById = new Map(grades.map((grade) => [grade.id_produto_grade, grade]));
-
-  const productIds = [
-    ...new Set(
-      [...cores.map((cor) => cor.id_produto), ...grades.map((grade) => grade.id_produto)].filter(
-        Boolean,
-      ),
-    ),
-  ];
-
-  const [produtos, fotos] = await Promise.all([
-    Produtos.findAll({
-      where: { id_produto: { [Op.in]: productIds } },
-    }),
-    ProdutoFotos.findAll({
-      where: {
-        [Op.or]: [
-          { id_produto_cor: { [Op.in]: corIds } },
-          { id_produto: { [Op.in]: productIds } },
-        ],
-      },
-      order: [["id_produto_foto", "ASC"]],
-    }),
-  ]);
-
-  const produtosById = new Map(produtos.map((produto) => [produto.id_produto, produto]));
-  const fotosByCorId = new Map<number, string>();
-  const fotosByProdutoId = new Map<number, string>();
-
-  for (const foto of fotos) {
-    if (!fotosByCorId.has(foto.id_produto_cor)) {
-      fotosByCorId.set(foto.id_produto_cor, foto.caminho_url);
-    }
-
-    if (!fotosByProdutoId.has(foto.id_produto)) {
-      fotosByProdutoId.set(foto.id_produto, foto.caminho_url);
-    }
-  }
-
-  return items.map((item) => {
+  const enrichedItems = await Promise.all(items.map(async (item) => {
     const rawItem = typeof item.toJSON === "function" ? item.toJSON() : item;
-    const cor = coresById.get(Number(item.id_produto_cor));
-    const grade = gradesById.get(Number(item.id_produto_grade));
+    const produtoContext = await resolveProdutoContext(
+      Number(item.id_produto_cor),
+      Number(item.id_produto_grade),
+    );
 
-    if (!cor || !grade || cor.id_produto !== grade.id_produto) {
+    if (!produtoContext) {
       return {
         ...rawItem,
         produto: null,
@@ -157,25 +104,14 @@ export const enrichItemsWithProductData = async <T extends ItemLike>(items: T[])
       };
     }
 
-    const produto = produtosById.get(cor.id_produto);
-    if (!produto) {
-      return {
-        ...rawItem,
-        produto: null,
-        cor: null,
-        grade: null,
-        foto_produto: null,
-      };
-    }
-
+    const { produto, cor, grade, foto } = produtoContext;
     const quantidade = normalizeQuantidade(item.quantidade);
     const acrescimoCor = roundMoney(parseMoney(cor.acrescimo));
     const acrescimoGrade = roundMoney(parseMoney(grade.acrescimo));
     const precoBase = roundMoney(parseMoney(produto.preco_base));
     const precoUnitario = roundMoney(precoBase + acrescimoCor + acrescimoGrade);
     const subtotal = roundMoney(precoUnitario * quantidade);
-    const fotoProduto =
-      fotosByCorId.get(cor.id_produto_cor) ?? fotosByProdutoId.get(produto.id_produto) ?? null;
+    const fotoProduto = foto ?? null;
 
     return {
       ...rawItem,
@@ -204,7 +140,9 @@ export const enrichItemsWithProductData = async <T extends ItemLike>(items: T[])
         acrescimo: acrescimoGrade,
       },
     };
-  });
+  }));
+
+  return enrichedItems;
 };
 
 export const calculateSubtotal = (precoUnitario: number, quantidade: number) =>

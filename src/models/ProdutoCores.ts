@@ -3,13 +3,13 @@ import sequelize from "../config/database";
 import { normalizeRgbColor } from "../utils/color";
 
 class ProdutoCores extends Model {
-  public id_produto_cor!: number;
-  public id_produto!: number;
-  public nome!: string;
-  public codigo_rgb!: string;
-  public acrescimo!: number | null;
-  public data_criacao!: Date;
-  public data_alteracao!: Date;
+  declare id_produto_cor: number;
+  declare id_produto: number;
+  declare nome: string;
+  declare codigo_rgb: string;
+  declare acrescimo: number | null;
+  declare data_criacao: Date;
+  declare data_alteracao: Date;
 }
 
 ProdutoCores.init(

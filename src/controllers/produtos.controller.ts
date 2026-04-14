@@ -13,6 +13,11 @@ import Produtos from "../models/Produtos";
 import { normalizeRgbColor } from "../utils/color";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
 import { saveProdutoFotoBits } from "../utils/produtoFotoStorage";
+import {
+  removeProdutoFromSearchIndex,
+  searchProdutosInIndex,
+  syncProdutoToSearchIndex,
+} from "../services/produtoSearchIndex.service";
 
 type CatalogFilters = {
   pagination: {
@@ -22,6 +27,20 @@ type CatalogFilters = {
   };
   whereSql: string;
   replacements: Record<string, unknown>;
+};
+
+type ControllerError = {
+  message: string;
+  status?: number;
+};
+
+type SearchCatalogRow = Record<string, unknown> & {
+  id_produto: number;
+  nome: string;
+  descricao?: string | null;
+  categoria_nome?: string | null;
+  ativo?: boolean;
+  quantidade_vendida?: number | null;
 };
 
 class ProdutosController {
@@ -89,6 +108,51 @@ class ProdutosController {
       .split(/\s+/)
       .map((term) => term.trim())
       .filter(Boolean);
+  }
+
+  private static getRawSearchValue(query: Request["query"]) {
+    const rawSearch =
+      query.q ??
+      query.search ??
+      query.busca ??
+      query.descricao;
+
+    return typeof rawSearch === "string" ? rawSearch.trim() : "";
+  }
+
+  private static buildBaseCatalogFilters(query: Request["query"]): CatalogFilters | ControllerError {
+    const { id_categoria, ativo } = query;
+    const pagination = parsePagination(query);
+    const whereClauses: string[] = [];
+    const replacements: CatalogFilters["replacements"] = {};
+
+    if (!pagination) {
+      return { message: "page e limit devem ser inteiros positivos." };
+    }
+
+    if (id_categoria !== undefined) {
+      if (id_categoria === "null") {
+        whereClauses.push("p.id_categoria IS NULL");
+      } else {
+        const parsedCategoriaId = Number(id_categoria);
+        if (Number.isNaN(parsedCategoriaId)) {
+          return { message: "id_categoria invalido." };
+        }
+        whereClauses.push("p.id_categoria = :id_categoria");
+        replacements.id_categoria = parsedCategoriaId;
+      }
+    }
+
+    if (ativo !== undefined) {
+      whereClauses.push("p.ativo = :ativo");
+      replacements.ativo = ativo === "true";
+    }
+
+    return {
+      pagination,
+      whereSql: whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "",
+      replacements,
+    };
   }
 
   private static parseFotoUrl(foto: unknown) {
@@ -175,47 +239,70 @@ class ProdutosController {
     return savedPaths;
   }
 
-  private static buildCatalogFilters(query: Request["query"]): CatalogFilters | { message: string } {
-    const { id_categoria, ativo } = query;
-    const searchTerms = ProdutosController.parseSearchTerms(query);
-    const pagination = parsePagination(query);
-    const whereClauses: string[] = [];
-    const replacements: CatalogFilters["replacements"] = {};
+  private static buildCatalogFilters(query: Request["query"]): CatalogFilters | ControllerError {
+    return ProdutosController.buildBaseCatalogFilters(query);
+  }
 
-    if (!pagination) {
-      return { message: "page e limit devem ser inteiros positivos." };
+  private static stripSearchDecorators(row: SearchCatalogRow) {
+    const {
+      categoria_nome,
+      quantidade_vendida,
+      imagens,
+      imagens_json,
+      ...product
+    } = row;
+
+    return product;
+  }
+
+  private static async searchFindAll(query: Request["query"]) {
+    const filters = ProdutosController.buildBaseCatalogFilters(query);
+    if ("message" in filters) {
+      return filters;
     }
 
-    if (id_categoria !== undefined) {
-      if (id_categoria === "null") {
-        whereClauses.push("p.id_categoria IS NULL");
-      } else {
-        const parsedCategoriaId = Number(id_categoria);
-        if (Number.isNaN(parsedCategoriaId)) {
-          return { message: "id_categoria invalido." };
-        }
-        whereClauses.push("p.id_categoria = :id_categoria");
-        replacements.id_categoria = parsedCategoriaId;
-      }
-    }
-
-    if (ativo !== undefined) {
-      whereClauses.push("p.ativo = :ativo");
-      replacements.ativo = ativo === "true";
-    }
-
-    for (const [index, term] of searchTerms.entries()) {
-      const replacementKey = `search_${index}`;
-      whereClauses.push(
-        `(LOWER(p.nome) LIKE LOWER(:${replacementKey}) OR LOWER(COALESCE(p.descricao, '')) LIKE LOWER(:${replacementKey}))`,
-      );
-      replacements[replacementKey] = `%${term}%`;
+    const indexedResult = await searchProdutosInIndex({
+      query: ProdutosController.getRawSearchValue(query),
+      page: filters.pagination.page,
+      limit: filters.pagination.limit,
+      idCategoria: query.id_categoria,
+      ativo: query.ativo,
+    });
+    if (!indexedResult) {
+      return { message: "Busca indisponivel no momento.", status: 503 };
     }
 
     return {
-      pagination,
-      whereSql: whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "",
-      replacements,
+      data: indexedResult.data.map(ProdutosController.stripSearchDecorators),
+      pagination: buildPaginationMeta(filters.pagination.page, filters.pagination.limit, indexedResult.total),
+    };
+  }
+
+  private static async searchCatalog(
+    query: Request["query"],
+    options: { onlyWithSales?: boolean; preferSales?: boolean } = {},
+  ) {
+    const filters = ProdutosController.buildBaseCatalogFilters(query);
+    if ("message" in filters) {
+      return filters;
+    }
+
+    const indexedResult = await searchProdutosInIndex({
+      query: ProdutosController.getRawSearchValue(query),
+      page: filters.pagination.page,
+      limit: filters.pagination.limit,
+      idCategoria: query.id_categoria,
+      ativo: query.ativo,
+      onlyWithSales: options.onlyWithSales,
+      sort: options.preferSales ? ["quantidade_vendida:desc", "id_produto:asc"] : undefined,
+    });
+    if (!indexedResult) {
+      return { message: "Busca indisponivel no momento.", status: 503 };
+    }
+
+    return {
+      data: indexedResult.data,
+      pagination: buildPaginationMeta(filters.pagination.page, filters.pagination.limit, indexedResult.total),
     };
   }
 
@@ -231,11 +318,18 @@ class ProdutosController {
   }
 
   static async findAll(req: Request, res: Response) {
+    if (ProdutosController.parseSearchTerms(req.query).length > 0) {
+      const searchResult = await ProdutosController.searchFindAll(req.query);
+      if ("message" in searchResult) {
+        return res.status(searchResult.status ?? 400).json({ message: searchResult.message });
+      }
+
+      return res.status(200).json(searchResult);
+    }
+
     const { id_categoria, ativo } = req.query;
-    const searchTerms = ProdutosController.parseSearchTerms(req.query);
     const pagination = parsePagination(req.query);
     const where: Record<string | symbol, unknown> = {};
-    const andClauses: Record<string | symbol, unknown>[] = [];
 
     if (!pagination) {
       return res.status(400).json({ message: "page e limit devem ser inteiros positivos." });
@@ -257,19 +351,6 @@ class ProdutosController {
       where.ativo = ativo === "true";
     }
 
-    for (const term of searchTerms) {
-      andClauses.push({
-        [Op.or]: [
-          { nome: { [Op.like]: `%${term}%` } },
-          { descricao: { [Op.like]: `%${term}%` } },
-        ],
-      });
-    }
-
-    if (andClauses.length > 0) {
-      where[Op.and] = andClauses;
-    }
-
     const { count, rows } = await Produtos.findAndCountAll({
       where,
       limit: pagination.limit,
@@ -283,6 +364,15 @@ class ProdutosController {
   }
 
   static async catalog(req: Request, res: Response) {
+    if (ProdutosController.parseSearchTerms(req.query).length > 0) {
+      const searchResult = await ProdutosController.searchCatalog(req.query);
+      if ("message" in searchResult) {
+        return res.status(searchResult.status ?? 400).json({ message: searchResult.message });
+      }
+
+      return res.status(200).json(searchResult);
+    }
+
     const filters = ProdutosController.buildCatalogFilters(req.query);
     if ("message" in filters) {
       return res.status(400).json({ message: filters.message });
@@ -342,6 +432,18 @@ class ProdutosController {
   }
 
   static async bestSellers(req: Request, res: Response) {
+    if (ProdutosController.parseSearchTerms(req.query).length > 0) {
+      const searchResult = await ProdutosController.searchCatalog(req.query, {
+        onlyWithSales: true,
+        preferSales: true,
+      });
+      if ("message" in searchResult) {
+        return res.status(searchResult.status ?? 400).json({ message: searchResult.message });
+      }
+
+      return res.status(200).json(searchResult);
+    }
+
     const filters = ProdutosController.buildCatalogFilters(req.query);
     if ("message" in filters) {
       return res.status(400).json({ message: filters.message });
@@ -566,6 +668,8 @@ class ProdutosController {
         };
       });
 
+      await syncProdutoToSearchIndex(result.produto.id_produto);
+
       return res.status(201).json({
         ...(result.produto.toJSON() as Record<string, unknown>),
         grades: result.grades,
@@ -732,6 +836,8 @@ class ProdutosController {
           }
         }
       });
+
+      await syncProdutoToSearchIndex(productId);
     } catch (error) {
       return res.status(400).json({
         message: error instanceof Error ? error.message : "Falha ao atualizar produto com itens.",
@@ -830,6 +936,8 @@ class ProdutosController {
 
       await produto.destroy({ transaction });
     });
+
+    await removeProdutoFromSearchIndex(productId);
 
     return res.status(204).send();
   }

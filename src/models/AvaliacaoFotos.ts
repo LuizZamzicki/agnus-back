@@ -2,9 +2,9 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class AvaliacaoFotos extends Model {
-  public id_avaliacao_foto!: number;
-  public id_avaliacao_produto!: number;
-  public caminho_url!: string | null;
+  declare id_avaliacao_foto: number;
+  declare id_avaliacao_produto: number;
+  declare caminho_url: string | null;
 }
 
 AvaliacaoFotos.init(

@@ -13,6 +13,12 @@ class PedidosController {
     "cancelado",
   ];
 
+  private static getModelNumber(instance: any, fieldName: string) {
+    const rawValue = typeof instance?.get === "function" ? instance.get(fieldName) : instance?.[fieldName];
+    const parsedValue = Number(rawValue);
+    return Number.isNaN(parsedValue) ? null : parsedValue;
+  }
+
   static async findAll(req: Request, res: Response) {
     const { id_usuario, status } = req.query;
     const where: { id_usuario?: number; status?: string } = {};
@@ -20,7 +26,7 @@ class PedidosController {
     if (id_usuario !== undefined) {
       const parsedUsuarioId = Number(id_usuario);
       if (Number.isNaN(parsedUsuarioId)) {
-        return res.status(400).json({ message: "id_usuario inválido." });
+        return res.status(400).json({ message: "id_usuario invÃ¡lido." });
       }
       where.id_usuario = parsedUsuarioId;
     }
@@ -28,7 +34,7 @@ class PedidosController {
     if (status !== undefined) {
       const normalizedStatus = String(status);
       if (!PedidosController.STATUS_VALIDOS.includes(normalizedStatus)) {
-        return res.status(400).json({ message: "status inválido." });
+        return res.status(400).json({ message: "status invÃ¡lido." });
       }
       where.status = normalizedStatus;
     }
@@ -42,7 +48,7 @@ class PedidosController {
     const pedido = await Pedidos.findByPk(Number(id));
 
     if (!pedido) {
-      return res.status(404).json({ message: "Pedido não encontrado" });
+      return res.status(404).json({ message: "Pedido nÃ£o encontrado" });
     }
 
     return res.status(200).send(pedido);
@@ -59,27 +65,28 @@ class PedidosController {
 
     if (!id_usuario || !id_usuario_endereco) {
       return res.status(400).json({
-        message: "id_usuario e id_usuario_endereco são obrigatorios.",
+        message: "id_usuario e id_usuario_endereco sÃ£o obrigatorios.",
       });
     }
 
     if (!PedidosController.STATUS_VALIDOS.includes(status)) {
-      return res.status(400).json({ message: "status inválido." });
+      return res.status(400).json({ message: "status invÃ¡lido." });
     }
 
     const usuario = await Usuarios.findByPk(Number(id_usuario));
     if (!usuario) {
-      return res.status(404).json({ message: "Usuário não encontrado" });
+      return res.status(404).json({ message: "UsuÃ¡rio nÃ£o encontrado" });
     }
 
     const endereco = await UsuarioEnderecos.findByPk(Number(id_usuario_endereco));
     if (!endereco) {
-      return res.status(404).json({ message: "Endereço do usuário não encontrado" });
+      return res.status(404).json({ message: "EndereÃ§o do usuÃ¡rio nÃ£o encontrado" });
     }
 
-    if (endereco.id_usuario !== Number(id_usuario)) {
+    const enderecoUserId = PedidosController.getModelNumber(endereco, "id_usuario");
+    if (enderecoUserId !== Number(id_usuario)) {
       return res.status(400).json({
-        message: "O endereço informado não pertence ao usuário informado.",
+        message: "O endereÃ§o informado nÃ£o pertence ao usuÃ¡rio informado.",
       });
     }
 
@@ -100,37 +107,49 @@ class PedidosController {
 
     const pedido = await Pedidos.findByPk(Number(id));
     if (!pedido) {
-      return res.status(404).json({ message: "Pedido não encontrado" });
+      return res.status(404).json({ message: "Pedido nÃ£o encontrado" });
     }
 
     if (status !== undefined && !PedidosController.STATUS_VALIDOS.includes(status)) {
-      return res.status(400).json({ message: "status inválido." });
+      return res.status(400).json({ message: "status invÃ¡lido." });
     }
 
-    const nextIdUsuario = id_usuario !== undefined ? Number(id_usuario) : pedido.id_usuario;
+    const nextIdUsuario =
+      id_usuario !== undefined
+        ? Number(id_usuario)
+        : PedidosController.getModelNumber(pedido, "id_usuario");
     const nextIdUsuarioEndereco =
       id_usuario_endereco !== undefined
         ? Number(id_usuario_endereco)
-        : pedido.id_usuario_endereco;
+        : PedidosController.getModelNumber(pedido, "id_usuario_endereco");
+
+    if (nextIdUsuario == null || nextIdUsuarioEndereco == null) {
+      return res.status(400).json({
+        message: "Pedido com relacionamento de usuario ou endereco invalido.",
+      });
+    }
 
     if (id_usuario !== undefined) {
       const usuario = await Usuarios.findByPk(nextIdUsuario);
       if (!usuario) {
-        return res.status(404).json({ message: "Usuário não encontrado" });
+        return res.status(404).json({ message: "UsuÃ¡rio nÃ£o encontrado" });
       }
     }
 
     if (id_usuario_endereco !== undefined) {
       const endereco = await UsuarioEnderecos.findByPk(nextIdUsuarioEndereco);
       if (!endereco) {
-        return res.status(404).json({ message: "Endereço do usuário não encontrado" });
+        return res.status(404).json({ message: "EndereÃ§o do usuÃ¡rio nÃ£o encontrado" });
       }
     }
 
     const enderecoFinal = await UsuarioEnderecos.findByPk(nextIdUsuarioEndereco);
-    if (!enderecoFinal || enderecoFinal.id_usuario !== nextIdUsuario) {
+    const enderecoFinalUserId = enderecoFinal
+      ? PedidosController.getModelNumber(enderecoFinal, "id_usuario")
+      : null;
+    if (!enderecoFinal || enderecoFinalUserId !== nextIdUsuario) {
       return res.status(400).json({
-        message: "O endereço informado não pertence ao usuário informado.",
+        message: "O endereÃ§o informado nÃ£o pertence ao usuÃ¡rio informado.",
       });
     }
 
@@ -150,7 +169,7 @@ class PedidosController {
     const pedido = await Pedidos.findByPk(Number(id));
 
     if (!pedido) {
-      return res.status(404).json({ message: "Pedido não encontrado" });
+      return res.status(404).json({ message: "Pedido nÃ£o encontrado" });
     }
 
     await pedido.destroy();

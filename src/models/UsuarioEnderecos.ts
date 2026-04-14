@@ -2,20 +2,20 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class UsuarioEnderecos extends Model {
-  public id_usuario_endereco!: number;
-  public id_usuario!: number;
-  public cep!: string;
-  public logradouro!: string;
-  public numero!: string | null;
-  public complemento!: string | null;
-  public bairro!: string | null;
-  public cidade!: string | null;
-  public estado!: string | null;
-  public pais!: string | null;
-  public principal!: boolean;
-  public data_criacao!: Date;
-  public data_alteracao!: Date;
-  public ativo!: boolean;
+  declare id_usuario_endereco: number;
+  declare id_usuario: number;
+  declare cep: string;
+  declare logradouro: string;
+  declare numero: string | null;
+  declare complemento: string | null;
+  declare bairro: string | null;
+  declare cidade: string | null;
+  declare estado: string | null;
+  declare pais: string | null;
+  declare principal: boolean;
+  declare data_criacao: Date;
+  declare data_alteracao: Date;
+  declare ativo: boolean;
 }
 
 UsuarioEnderecos.init(

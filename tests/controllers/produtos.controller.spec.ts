@@ -9,6 +9,11 @@ import ProdutoCores from "../../src/models/ProdutoCores";
 import ProdutoFotos from "../../src/models/ProdutoFotos";
 import ProdutoGrades from "../../src/models/ProdutoGrades";
 import Produtos from "../../src/models/Produtos";
+import {
+  removeProdutoFromSearchIndex,
+  searchProdutosInIndex,
+  syncProdutoToSearchIndex,
+} from "../../src/services/produtoSearchIndex.service";
 import { buildModelInstance, mockRequest, mockResponse } from "../helpers/http";
 
 jest.mock("../../src/config/database", () => ({
@@ -54,6 +59,12 @@ jest.mock("../../src/models/Produtos", () => ({
   __esModule: true,
   default: { findAndCountAll: jest.fn(), findByPk: jest.fn(), create: jest.fn() },
 }));
+jest.mock("../../src/services/produtoSearchIndex.service", () => ({
+  __esModule: true,
+  removeProdutoFromSearchIndex: jest.fn(async () => false),
+  searchProdutosInIndex: jest.fn(async () => null),
+  syncProdutoToSearchIndex: jest.fn(async () => false),
+}));
 
 const db = sequelize as unknown as { query: jest.Mock; transaction: jest.Mock };
 const avaliacaoFotosModel = AvaliacaoFotos as unknown as { destroy: jest.Mock };
@@ -69,8 +80,21 @@ const produtosModel = Produtos as unknown as {
   findByPk: jest.Mock;
   create: jest.Mock;
 };
+const produtoSearchService = {
+  removeProdutoFromSearchIndex: removeProdutoFromSearchIndex as jest.Mock,
+  searchProdutosInIndex: searchProdutosInIndex as jest.Mock,
+  syncProdutoToSearchIndex: syncProdutoToSearchIndex as jest.Mock,
+};
 
 describe("ProdutosController", () => {
+  beforeEach(() => {
+    produtoSearchService.removeProdutoFromSearchIndex.mockClear();
+    produtoSearchService.searchProdutosInIndex.mockClear();
+    produtoSearchService.searchProdutosInIndex.mockResolvedValue(null);
+    produtoSearchService.syncProdutoToSearchIndex.mockClear();
+    produtoSearchService.syncProdutoToSearchIndex.mockResolvedValue(false);
+  });
+
   it("helpers privados cobrem entradas de borda", () => {
     expect((ProdutosController as any).hasCategoryField(null)).toBe(false);
     expect((ProdutosController as any).hasCategoryField({})).toBeUndefined();
@@ -117,6 +141,49 @@ describe("ProdutosController", () => {
     db.query.mockResolvedValueOnce([{ total: 1 }]).mockResolvedValueOnce([{ id_produto: 2, imagens_json: "[]" }]);
     await ProdutosController.catalog(mockRequest({ query: { id_categoria: "2" } }), resCatalogNum);
     expect(resCatalogNum.status).toHaveBeenCalledWith(200);
+  });
+
+  it("retorna 503 quando a busca no Meilisearch esta indisponivel", async () => {
+    const resFind = mockResponse();
+    await ProdutosController.findAll(mockRequest({ query: { q: "camizeta" } }), resFind);
+    expect(resFind.status).toHaveBeenCalledWith(503);
+    expect(resFind.json).toHaveBeenCalledWith({ message: "Busca indisponivel no momento." });
+
+    const resCatalog = mockResponse();
+    await ProdutosController.catalog(mockRequest({ query: { q: "camisa" } }), resCatalog);
+    expect(resCatalog.status).toHaveBeenCalledWith(503);
+    expect(resCatalog.json).toHaveBeenCalledWith({ message: "Busca indisponivel no momento." });
+  });
+
+  it("usa o Meilisearch quando o indice responde", async () => {
+    produtoSearchService.searchProdutosInIndex.mockResolvedValueOnce({
+      data: [
+        {
+          id_produto: 9,
+          id_categoria: 1,
+          nome: "Camiseta Dry Fit",
+          descricao: "treino",
+          preco_base: 59.9,
+          ativo: true,
+          categoria_nome: "Roupas",
+          quantidade_vendida: 15,
+          imagens: ["x.jpg"],
+        },
+      ],
+      total: 1,
+    });
+
+    const res = mockResponse();
+    await ProdutosController.catalog(mockRequest({ query: { q: "camiseta" } }), res);
+
+    expect(produtoSearchService.searchProdutosInIndex).toHaveBeenCalledWith(
+      expect.objectContaining({ query: "camiseta", page: 1, limit: 10 }),
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      data: [expect.objectContaining({ id_produto: 9, imagens: ["x.jpg"] })],
+      pagination: expect.objectContaining({ page: 1, limit: 10, total: 1 }),
+    });
   });
 
   it("getById cobre 404 e 200", async () => {
@@ -196,6 +263,7 @@ describe("ProdutosController", () => {
     );
     expect(resOk.status).toHaveBeenCalledWith(201);
     expect(resOk.json).toHaveBeenCalledWith(expect.objectContaining({ id_produto: 10 }));
+    expect(produtoSearchService.syncProdutoToSearchIndex).toHaveBeenCalledWith(10);
 
     const resFail = mockResponse();
     await ProdutosController.create(
@@ -334,6 +402,7 @@ describe("ProdutosController", () => {
     );
     expect(produto.update).toHaveBeenCalled();
     expect(res200.status).toHaveBeenCalledWith(200);
+    expect(produtoSearchService.syncProdutoToSearchIndex).toHaveBeenCalledWith(1);
   });
 
   it("update permite sincronizar grades, cores e fotos", async () => {
@@ -383,6 +452,7 @@ describe("ProdutosController", () => {
     expect(coresModel.create).toHaveBeenCalled();
     expect(fotosModel.create).toHaveBeenCalled();
     expect(res200.status).toHaveBeenCalledWith(200);
+    expect(produtoSearchService.syncProdutoToSearchIndex).toHaveBeenCalledWith(1);
   });
 
   it("remove cobre 404 e 204", async () => {
@@ -405,5 +475,6 @@ describe("ProdutosController", () => {
     expect(carrinhoItensModel.destroy).not.toHaveBeenCalled();
     expect(avaliacaoFotosModel.destroy).not.toHaveBeenCalled();
     expect(res204.status).toHaveBeenCalledWith(204);
+    expect(produtoSearchService.removeProdutoFromSearchIndex).toHaveBeenCalledWith(1);
   });
 });

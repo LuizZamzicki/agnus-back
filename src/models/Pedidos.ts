@@ -2,20 +2,20 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class Pedidos extends Model {
-  public id_pedido!: number;
-  public id_usuario!: number;
-  public id_usuario_endereco!: number;
-  public status!:
+  declare id_pedido: number;
+  declare id_usuario: number;
+  declare id_usuario_endereco: number;
+  declare status:
     | "aguardando_calculo_frete"
     | "aguardando_pagamento"
     | "pago"
     | "enviado"
     | "entregue"
     | "cancelado";
-  public valor_total!: number | null;
-  public valor_frete!: number | null;
-  public data_criacao!: Date;
-  public data_alteracao!: Date;
+  declare valor_total: number | null;
+  declare valor_frete: number | null;
+  declare data_criacao: Date;
+  declare data_alteracao: Date;
 }
 
 Pedidos.init(

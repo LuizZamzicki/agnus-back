@@ -2,12 +2,12 @@ import { DataTypes, Model } from "sequelize";
 import sequelize from "../config/database";
 
 class AvaliacaoProdutos extends Model {
-  public id_avaliacao_produto!: number;
-  public id_produto!: number;
-  public id_usuario!: number;
-  public titulo!: string | null;
-  public comentario!: string | null;
-  public nota!: number | null;
+  declare id_avaliacao_produto: number;
+  declare id_produto: number;
+  declare id_usuario: number;
+  declare titulo: string | null;
+  declare comentario: string | null;
+  declare nota: number | null;
 }
 
 AvaliacaoProdutos.init(
