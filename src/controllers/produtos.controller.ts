@@ -601,7 +601,7 @@ class ProdutosController {
         ? ProdutosController.parseMoneyValue(preco_custo, 0)
         : undefined;
 
-    
+
     if (!Number.isInteger(productId)) {
       return res.status(400).json({ message: "id do produto invalido." });
     }
@@ -772,10 +772,10 @@ class ProdutosController {
     ];
     const orderItemCount = orderFilters.length
       ? await PedidoItens.count({
-          where: {
-            [Op.or]: orderFilters,
-          },
-        })
+        where: {
+          [Op.or]: orderFilters,
+        },
+      })
       : 0;
 
     if (orderItemCount > 0) {
