@@ -3,6 +3,11 @@ import UsuarioSenhasHistorico from "../models/UsuarioSenhasHistorico";
 import Usuarios from "../models/Usuarios";
 
 class UsuarioSenhasHistoricoController { 
+  private static getUserId(user: any) {
+    const rawUserId = typeof user?.get === "function" ? user.get("id_usuario") : user?.id_usuario;
+    const parsedUserId = Number(rawUserId);
+    return Number.isInteger(parsedUserId) && parsedUserId > 0 ? parsedUserId : null;
+  }
    
   static async findByPasswordHash(email : string, senha : string) : Promise<Date | null> {
 
@@ -11,8 +16,13 @@ class UsuarioSenhasHistoricoController {
       return null;
     }
 
+    const userId = UsuarioSenhasHistoricoController.getUserId(user);
+    if (userId == null) {
+      return null;
+    }
+
     const historyList = await UsuarioSenhasHistorico.findAll({
-      where: { id_usuario: Number(user.id_usuario) },
+      where: { id_usuario: userId },
       order: [["data_criacao", "DESC"]],
     });
 
@@ -28,14 +38,18 @@ class UsuarioSenhasHistoricoController {
   }
 
   static async create( id_usuario:number, senhaHash : string) : Promise<boolean> {  
+    const userId = Number(id_usuario);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return false;
+    }
 
-    const user = await Usuarios.findByPk(Number(id_usuario));
+    const user = await Usuarios.findByPk(userId);
     if (!user) {
       return false;
     }
 
     await UsuarioSenhasHistorico.create({
-      id_usuario: Number(id_usuario),
+      id_usuario: userId,
       senha: senhaHash,
     });
 

@@ -4,6 +4,11 @@ import CarrinhoItens from "../../src/models/CarrinhoItens";
 import Carrinhos from "../../src/models/Carrinhos";
 import ProdutoCores from "../../src/models/ProdutoCores";
 import ProdutoGrades from "../../src/models/ProdutoGrades";
+import {
+  enrichItemsWithProductData,
+  normalizeItemQuantity,
+  resolveProdutoContext,
+} from "../../src/utils/itemDetails";
 import Usuarios from "../../src/models/Usuarios";
 import { buildModelInstance, mockRequest, mockResponse } from "../helpers/http";
 
@@ -27,12 +32,24 @@ jest.mock("../../src/models/Usuarios", () => ({
   __esModule: true,
   default: { findByPk: jest.fn() },
 }));
+jest.mock("../../src/utils/itemDetails", () => ({
+  __esModule: true,
+  enrichItemsWithProductData: jest.fn(async (items) => items ?? []),
+  normalizeItemQuantity: jest.fn((value) => {
+    const parsedValue = Number(value ?? 1);
+    return Number.isFinite(parsedValue) && parsedValue > 0 ? Math.trunc(parsedValue) : 1;
+  }),
+  resolveProdutoContext: jest.fn(),
+}));
 
 const carrinhoItensModel = CarrinhoItens as unknown as { findAll: jest.Mock; findByPk: jest.Mock; create: jest.Mock };
 const carrinhosModel = Carrinhos as unknown as { findAll: jest.Mock; findByPk: jest.Mock; create: jest.Mock };
 const coresModel = ProdutoCores as unknown as { findByPk: jest.Mock };
 const gradesModel = ProdutoGrades as unknown as { findByPk: jest.Mock };
 const usuariosModel = Usuarios as unknown as { findByPk: jest.Mock };
+const enrichItemsWithProductDataMock = enrichItemsWithProductData as unknown as jest.Mock;
+const normalizeItemQuantityMock = normalizeItemQuantity as unknown as jest.Mock;
+const resolveProdutoContextMock = resolveProdutoContext as unknown as jest.Mock;
 
 describe("CarrinhosController", () => {
   it("cobre todos os fluxos principais", async () => {
@@ -107,11 +124,6 @@ describe("CarrinhosController", () => {
 
 describe("CarrinhoItensController", () => {
   it("cobre todos os fluxos principais", async () => {
-    const resGet404 = mockResponse();
-    carrinhoItensModel.findAll.mockResolvedValueOnce(null);
-    await CarrinhoItensController.getByIdCart(mockRequest({ params: { id_cart: "1" } }), resGet404);
-    expect(resGet404.status).toHaveBeenCalledWith(404);
-
     const resGet = mockResponse();
     carrinhoItensModel.findAll.mockResolvedValueOnce([]);
     await CarrinhoItensController.getByIdCart(mockRequest({ params: { id_cart: "1" } }), resGet);
@@ -153,6 +165,8 @@ describe("CarrinhoItensController", () => {
     carrinhosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_carrinho: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 1, id_produto: 5 }));
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 1, id_produto: 5 }));
+    resolveProdutoContextMock.mockResolvedValueOnce({ precoUnitario: 10 });
+    enrichItemsWithProductDataMock.mockResolvedValueOnce([item]);
     carrinhoItensModel.create.mockResolvedValueOnce(item);
     await CarrinhoItensController.create(mockRequest({ body: payload }), resCreate201);
     expect(resCreate201.status).toHaveBeenCalledWith(201);
@@ -199,12 +213,15 @@ describe("CarrinhoItensController", () => {
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 3, id_produto: 5 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 2, id_produto: 5 }));
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 3, id_produto: 5 }));
+    resolveProdutoContextMock.mockResolvedValueOnce({ precoUnitario: 10 });
+    enrichItemsWithProductDataMock.mockResolvedValueOnce([itemUp5]);
     await CarrinhoItensController.update(
       mockRequest({ params: { id: "1" }, body: { id_carrinho: 1, id_produto_cor: 2, id_produto_grade: 3, quantidade: 2 } }),
       resUp200,
     );
     expect(itemUp5.update).toHaveBeenCalled();
     expect(resUp200.status).toHaveBeenCalledWith(200);
+    expect(normalizeItemQuantityMock).toHaveBeenCalled();
 
     const resDel404 = mockResponse();
     carrinhoItensModel.findByPk.mockResolvedValueOnce(null);

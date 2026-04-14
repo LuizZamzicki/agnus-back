@@ -1,0 +1,1246 @@
+{
+  "info": {
+    "name": "Agnus Back",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Collection gerada automaticamente a partir das rotas declaradas em src/app.ts."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "id",
+      "value": "1"
+    },
+    {
+      "key": "id_cart",
+      "value": "1"
+    },
+    {
+      "key": "id_order",
+      "value": "1"
+    },
+    {
+      "key": "id_produto",
+      "value": "1"
+    },
+    {
+      "key": "id_review",
+      "value": "1"
+    },
+    {
+      "key": "id_user",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "POST /users",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: nome, cpf, email, senha, tipo.\nHandler atual: UsersController.create.",
+            "url": "{{baseUrl}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Exemplo\",\n  \"cpf\": null,\n  \"email\": \"admin@email.com\",\n  \"senha\": \"123456\",\n  \"tipo\": \"cliente\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Requer Authorization: Bearer {{token}}.\nRestrita por perfil: authorizeRoles('administrador').\nQuery sugerida: page, limit.\nHandler atual: UsersController.findAll.",
+            "url": "{{baseUrl}}/users?page=1&limit=10",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /users/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Requer Authorization: Bearer {{token}}.\nAcesso ao proprio usuario ou administrador: authorizeSelfOrAdmin('id').\nHandler atual: UsersController.getById.",
+            "url": "{{baseUrl}}/users/{{id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE /users/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Requer Authorization: Bearer {{token}}.\nRestrita por perfil: authorizeRoles('administrador').\nHandler atual: UsersController.remove.",
+            "url": "{{baseUrl}}/users/{{id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PUT /users/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Requer Authorization: Bearer {{token}}.\nAcesso ao proprio usuario ou administrador: authorizeSelfOrAdmin('id').\nBody sugerido: nome, cpf, email, senha, tipo.\nHandler atual: UsersController.update.",
+            "url": "{{baseUrl}}/users/{{id}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Exemplo\",\n  \"cpf\": \"123.456.789-00\",\n  \"email\": \"admin@email.com\",\n  \"senha\": \"123456\",\n  \"tipo\": \"cliente\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PATCH /users/:id/password",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Requer Authorization: Bearer {{token}}.\nAcesso ao proprio usuario ou administrador: authorizeSelfOrAdmin('id').\nBody sugerido: senha.\nHandler atual: UsersController.updatePassword.",
+            "url": "{{baseUrl}}/users/{{id}}/password",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"senha\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Addresses",
+      "item": [
+        {
+          "name": "POST /user-addresses",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_usuario, cep, logradouro, numero, complemento, bairro, cidade, estado, pais, principal, ativo.\nHandler atual: UsuarioEnderecosController.create.",
+            "url": "{{baseUrl}}/user-addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_usuario\": 1,\n  \"cep\": \"01001-000\",\n  \"logradouro\": \"Rua Exemplo\",\n  \"numero\": null,\n  \"complemento\": null,\n  \"bairro\": null,\n  \"cidade\": null,\n  \"estado\": null,\n  \"pais\": \"Brasil\",\n  \"principal\": false,\n  \"ativo\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /user-addresses/:id_user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: UsuarioEnderecosController.getByIdUser.",
+            "url": "{{baseUrl}}/user-addresses/{{id_user}}"
+          }
+        },
+        {
+          "name": "PUT /user-addresses/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_usuario, cep, logradouro, numero, complemento, bairro, cidade, estado, pais, principal, ativo.\nHandler atual: UsuarioEnderecosController.update.",
+            "url": "{{baseUrl}}/user-addresses/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_usuario\": 1,\n  \"cep\": \"01001-000\",\n  \"logradouro\": \"Rua Exemplo\",\n  \"numero\": \"123\",\n  \"complemento\": \"Apto 12\",\n  \"bairro\": \"Centro\",\n  \"cidade\": \"Sao Paulo\",\n  \"estado\": \"SP\",\n  \"pais\": \"Brasil\",\n  \"principal\": false,\n  \"ativo\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /user-addresses/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: UsuarioEnderecosController.remove.",
+            "url": "{{baseUrl}}/user-addresses/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Contacts",
+      "item": [
+        {
+          "name": "POST /user-contacts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_usuario, tipo, valor, principal.\nHandler atual: UsuarioContatosController.create.",
+            "url": "{{baseUrl}}/user-contacts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_usuario\": 1,\n  \"tipo\": \"celular\",\n  \"valor\": \"11999999999\",\n  \"principal\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /user-contacts/:id_user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: UsuarioContatosController.getByIdUser.",
+            "url": "{{baseUrl}}/user-contacts/{{id_user}}"
+          }
+        },
+        {
+          "name": "PUT /user-contacts/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_usuario, tipo, valor, principal.\nHandler atual: UsuarioContatosController.update.",
+            "url": "{{baseUrl}}/user-contacts/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_usuario\": 1,\n  \"tipo\": \"celular\",\n  \"valor\": \"11999999999\",\n  \"principal\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /user-contacts/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: UsuarioContatosController.remove.",
+            "url": "{{baseUrl}}/user-contacts/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "GET /categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Query sugerida: page, limit.\nHandler atual: CategoriasController.findAll.",
+            "url": "{{baseUrl}}/categories?page=1&limit=10"
+          }
+        },
+        {
+          "name": "POST /categories",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: nome.\nHandler atual: CategoriasController.create.",
+            "url": "{{baseUrl}}/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Exemplo\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /categories/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: CategoriasController.getById.",
+            "url": "{{baseUrl}}/categories/{{id}}"
+          }
+        },
+        {
+          "name": "PUT /categories/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: nome.\nHandler atual: CategoriasController.update.",
+            "url": "{{baseUrl}}/categories/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Exemplo\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /categories/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: CategoriasController.remove.",
+            "url": "{{baseUrl}}/categories/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "GET /products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Query sugerida: page, limit, id_categoria, ativo, q.\nHandler atual: ProdutosController.findAll.",
+            "url": "{{baseUrl}}/products?page=1&limit=10&id_categoria=1&ativo=true&q=camiseta"
+          }
+        },
+        {
+          "name": "GET /products/catalog",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Query sugerida: page, limit, id_categoria, ativo, q.\nHandler atual: ProdutosController.catalog.",
+            "url": "{{baseUrl}}/products/catalog?page=1&limit=10&id_categoria=1&ativo=true&q=camiseta%20basica"
+          }
+        },
+        {
+          "name": "GET /products/best-sellers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Query sugerida: page, limit, id_categoria, ativo, q.\nHandler atual: ProdutosController.bestSellers.",
+            "url": "{{baseUrl}}/products/best-sellers?page=1&limit=10&id_categoria=1&ativo=true&q=camiseta"
+          }
+        },
+        {
+          "name": "POST /products",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_categoria, nome, descricao, preco_custo, preco_base, ativo, grades, cores.\nHandler atual: ProdutosController.create.",
+            "url": "{{baseUrl}}/products",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_categoria\": 1,\n  \"nome\": \"Camiseta Basic\",\n  \"descricao\": \"Camiseta de algodao\",\n  \"preco_custo\": 39.9,\n  \"preco_base\": 79.9,\n  \"ativo\": true,\n  \"grades\": [\n    {\n      \"nome\": \"P\",\n      \"acrescimo\": 0\n    },\n    {\n      \"nome\": \"M\",\n      \"acrescimo\": 0\n    }\n  ],\n  \"cores\": [\n    {\n      \"nome\": \"Preto\",\n      \"codigo_rgb\": \"rgb(0,0,0)\",\n      \"acrescimo\": 0,\n      \"fotos\": [\n        \"https://exemplo.com/produtos/camiseta-preta-1.png\"\n      ],\n      \"fotos_upload\": []\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /products/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: ProdutosController.getById.",
+            "url": "{{baseUrl}}/products/{{id}}"
+          }
+        },
+        {
+          "name": "PUT /products/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_categoria, nome, descricao, preco_custo, preco_base, ativo, grades, cores.\nHandler atual: ProdutosController.update.",
+            "url": "{{baseUrl}}/products/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_categoria\": 1,\n  \"nome\": \"Camiseta Basic Atualizada\",\n  \"descricao\": \"Descricao atualizada\",\n  \"preco_custo\": 42.5,\n  \"preco_base\": 84.9,\n  \"ativo\": true,\n  \"grades\": [\n    {\n      \"nome\": \"P\",\n      \"acrescimo\": 0\n    },\n    {\n      \"nome\": \"G\",\n      \"acrescimo\": 5\n    }\n  ],\n  \"cores\": [\n    {\n      \"nome\": \"Azul\",\n      \"codigo_rgb\": \"rgb(20,60,180)\",\n      \"acrescimo\": 3,\n      \"fotos\": [\n        \"https://exemplo.com/produtos/camiseta-azul-1.png\"\n      ],\n      \"fotos_upload\": []\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /products/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: ProdutosController.remove.",
+            "url": "{{baseUrl}}/products/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Colors",
+      "item": [
+        {
+          "name": "POST /product-colors",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_produto, nome, codigo_rgb, tonalidade, acrescimo.\nHandler atual: ProdutoCoresController.create.",
+            "url": "{{baseUrl}}/product-colors",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_produto\": 1,\n  \"nome\": \"Exemplo\",\n  \"codigo_rgb\": \"rgb(255,0,0)\",\n  \"tonalidade\": \"rgb(255,0,0)\",\n  \"acrescimo\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /product-colors/:id_produto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: ProdutoCoresController.getByIdProduto.",
+            "url": "{{baseUrl}}/product-colors/{{id_produto}}"
+          }
+        },
+        {
+          "name": "PUT /product-colors/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_produto, nome, codigo_rgb, tonalidade, acrescimo.\nHandler atual: ProdutoCoresController.update.",
+            "url": "{{baseUrl}}/product-colors/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_produto\": 1,\n  \"nome\": \"Exemplo\",\n  \"codigo_rgb\": \"rgb(255,0,0)\",\n  \"tonalidade\": \"rgb(255,0,0)\",\n  \"acrescimo\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /product-colors/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: ProdutoCoresController.remove.",
+            "url": "{{baseUrl}}/product-colors/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Photos",
+      "item": [
+        {
+          "name": "POST /product-photos",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "Usa multipart/form-data para upload de arquivos.\nBody sugerido: id_produto, id_produto_cor, caminho_url.\nHandler atual: ProdutoFotosController.create.",
+            "url": "{{baseUrl}}/product-photos",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "id_produto",
+                  "type": "text",
+                  "value": "1"
+                },
+                {
+                  "key": "id_produto_cor",
+                  "type": "text",
+                  "value": "1"
+                },
+                {
+                  "key": "caminho_url",
+                  "type": "text",
+                  "value": "https://exemplo.com/produtos/foto.png"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /product-photos/:id_produto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: ProdutoFotosController.getByIdProduto.",
+            "url": "{{baseUrl}}/product-photos/{{id_produto}}"
+          }
+        },
+        {
+          "name": "PUT /product-photos/:id",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "description": "Usa multipart/form-data para upload de arquivos.\nBody sugerido: id_produto, id_produto_cor, caminho_url.\nHandler atual: ProdutoFotosController.update.",
+            "url": "{{baseUrl}}/product-photos/{{id}}",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "id_produto",
+                  "type": "text",
+                  "value": "1"
+                },
+                {
+                  "key": "id_produto_cor",
+                  "type": "text",
+                  "value": "1"
+                },
+                {
+                  "key": "caminho_url",
+                  "type": "text",
+                  "value": "https://exemplo.com/produtos/foto-atualizada.png"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "DELETE /product-photos/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: ProdutoFotosController.remove.",
+            "url": "{{baseUrl}}/product-photos/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Grades",
+      "item": [
+        {
+          "name": "POST /product-grades",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_produto, nome, acrescimo.\nHandler atual: ProdutoGradesController.create.",
+            "url": "{{baseUrl}}/product-grades",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_produto\": 1,\n  \"nome\": \"Exemplo\",\n  \"acrescimo\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /product-grades/:id_produto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: ProdutoGradesController.getByIdProduto.",
+            "url": "{{baseUrl}}/product-grades/{{id_produto}}"
+          }
+        },
+        {
+          "name": "PUT /product-grades/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_produto, nome, acrescimo.\nHandler atual: ProdutoGradesController.update.",
+            "url": "{{baseUrl}}/product-grades/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_produto\": 1,\n  \"nome\": \"Exemplo\",\n  \"acrescimo\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /product-grades/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: ProdutoGradesController.remove.",
+            "url": "{{baseUrl}}/product-grades/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Reviews",
+      "item": [
+        {
+          "name": "POST /product-reviews",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_produto, id_usuario, titulo, comentario, nota.\nHandler atual: AvaliacaoProdutosController.create.",
+            "url": "{{baseUrl}}/product-reviews",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_produto\": 1,\n  \"id_usuario\": 1,\n  \"titulo\": null,\n  \"comentario\": null,\n  \"nota\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /product-reviews/:id_produto",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: AvaliacaoProdutosController.getByIdProduto.",
+            "url": "{{baseUrl}}/product-reviews/{{id_produto}}"
+          }
+        },
+        {
+          "name": "PUT /product-reviews/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_produto, id_usuario, titulo, comentario, nota.\nHandler atual: AvaliacaoProdutosController.update.",
+            "url": "{{baseUrl}}/product-reviews/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_produto\": 1,\n  \"id_usuario\": 1,\n  \"titulo\": \"Titulo de exemplo\",\n  \"comentario\": \"Comentario de exemplo\",\n  \"nota\": 8.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /product-reviews/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: AvaliacaoProdutosController.remove.",
+            "url": "{{baseUrl}}/product-reviews/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Product Review Photos",
+      "item": [
+        {
+          "name": "POST /product-review-photos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_avaliacao_produto, caminho_url.\nHandler atual: AvaliacaoFotosController.create.",
+            "url": "{{baseUrl}}/product-review-photos",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_avaliacao_produto\": 1,\n  \"caminho_url\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /product-review-photos/:id_review",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: AvaliacaoFotosController.getByIdReview.",
+            "url": "{{baseUrl}}/product-review-photos/{{id_review}}"
+          }
+        },
+        {
+          "name": "PUT /product-review-photos/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_avaliacao_produto, caminho_url.\nHandler atual: AvaliacaoFotosController.update.",
+            "url": "{{baseUrl}}/product-review-photos/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_avaliacao_produto\": 1,\n  \"caminho_url\": \"https://exemplo.com/imagem.png\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /product-review-photos/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: AvaliacaoFotosController.remove.",
+            "url": "{{baseUrl}}/product-review-photos/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Carts",
+      "item": [
+        {
+          "name": "GET /carts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Query sugerida: id_usuario.\nHandler atual: CarrinhosController.findAll.",
+            "url": "{{baseUrl}}/carts?id_usuario=1"
+          }
+        },
+        {
+          "name": "POST /carts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_usuario.\nHandler atual: CarrinhosController.create.",
+            "url": "{{baseUrl}}/carts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_usuario\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /carts/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: CarrinhosController.getById.",
+            "url": "{{baseUrl}}/carts/{{id}}"
+          }
+        },
+        {
+          "name": "PUT /carts/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_usuario.\nHandler atual: CarrinhosController.update.",
+            "url": "{{baseUrl}}/carts/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_usuario\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /carts/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: CarrinhosController.remove.",
+            "url": "{{baseUrl}}/carts/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cart Items",
+      "item": [
+        {
+          "name": "POST /cart-items",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_carrinho, id_produto_cor, id_produto_grade, quantidade.\nHandler atual: CarrinhoItensController.create.",
+            "url": "{{baseUrl}}/cart-items",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_carrinho\": 1,\n  \"id_produto_cor\": 1,\n  \"id_produto_grade\": 1,\n  \"quantidade\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /cart-items/:id_cart",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: CarrinhoItensController.getByIdCart.",
+            "url": "{{baseUrl}}/cart-items/{{id_cart}}"
+          }
+        },
+        {
+          "name": "PUT /cart-items/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_carrinho, id_produto_cor, id_produto_grade, quantidade.\nHandler atual: CarrinhoItensController.update.",
+            "url": "{{baseUrl}}/cart-items/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_carrinho\": 1,\n  \"id_produto_cor\": 1,\n  \"id_produto_grade\": 1,\n  \"quantidade\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /cart-items/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: CarrinhoItensController.remove.",
+            "url": "{{baseUrl}}/cart-items/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "GET /orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Query sugerida: id_usuario, status.\nHandler atual: PedidosController.findAll.",
+            "url": "{{baseUrl}}/orders?id_usuario=1&status=aguardando_pagamento"
+          }
+        },
+        {
+          "name": "POST /orders",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_usuario, id_usuario_endereco, status, valor_total, valor_frete.\nHandler atual: PedidosController.create.",
+            "url": "{{baseUrl}}/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_usuario\": 1,\n  \"id_usuario_endereco\": 1,\n  \"status\": \"aguardando_pagamento\",\n  \"valor_total\": 0,\n  \"valor_frete\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /orders/:id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: PedidosController.getById.",
+            "url": "{{baseUrl}}/orders/{{id}}"
+          }
+        },
+        {
+          "name": "PUT /orders/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_usuario, id_usuario_endereco, status, valor_total, valor_frete.\nHandler atual: PedidosController.update.",
+            "url": "{{baseUrl}}/orders/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_usuario\": 1,\n  \"id_usuario_endereco\": 1,\n  \"status\": \"aguardando_pagamento\",\n  \"valor_total\": 149.9,\n  \"valor_frete\": 19.9\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /orders/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: PedidosController.remove.",
+            "url": "{{baseUrl}}/orders/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Order Items",
+      "item": [
+        {
+          "name": "POST /order-items",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_pedido, id_produto_cor, id_produto_grade, quantidade.\nHandler atual: PedidoItensController.create.",
+            "url": "{{baseUrl}}/order-items",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_pedido\": 1,\n  \"id_produto_cor\": 1,\n  \"id_produto_grade\": 1,\n  \"quantidade\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /order-items/:id_order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: PedidoItensController.getByIdOrder.",
+            "url": "{{baseUrl}}/order-items/{{id_order}}"
+          }
+        },
+        {
+          "name": "PUT /order-items/:id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: id_pedido, id_produto_cor, id_produto_grade, quantidade.\nHandler atual: PedidoItensController.update.",
+            "url": "{{baseUrl}}/order-items/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_pedido\": 1,\n  \"id_produto_cor\": 1,\n  \"id_produto_grade\": 1,\n  \"quantidade\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /order-items/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Handler atual: PedidoItensController.remove.",
+            "url": "{{baseUrl}}/order-items/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Body sugerido: email, senha.\nHandler atual: AuthController.login.",
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@email.com\",\n  \"senha\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data?.token) pm.collectionVariables.set('token', data.token);",
+                  "const userId = data?.user?.id_usuario ?? data?.user?.id;",
+                  "if (userId) pm.collectionVariables.set('id', String(userId));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /auth/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Requer Authorization: Bearer {{token}}.\nHandler atual: AuthController.me.",
+            "url": "{{baseUrl}}/auth/me",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /auth/google",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Handler atual: AuthController.googleStart.",
+            "url": "{{baseUrl}}/auth/google"
+          }
+        },
+        {
+          "name": "GET /auth/google/callback",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Query sugerida: code, state, error.\nHandler atual: AuthController.googleCallback.",
+            "url": "{{baseUrl}}/auth/google/callback?code=COLE_O_CODE_DO_GOOGLE_AQUI&state=COLE_O_STATE_AQUI&error="
+          }
+        }
+      ]
+    }
+  ]
+}

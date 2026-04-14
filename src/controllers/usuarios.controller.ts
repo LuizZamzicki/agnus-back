@@ -9,6 +9,11 @@ class UsuariosController {
     return argon2.hash(password, { type: argon2.argon2id });
   }
 
+  private static getUserId(user: any) {
+    const rawUserId = typeof user?.get === "function" ? user.get("id_usuario") : user?.id_usuario;
+    return Number(rawUserId);
+  }
+
   private static sanitizeUser(user: any) {
     const userData = user.toJSON();
     delete userData.senha;
@@ -60,7 +65,7 @@ class UsuariosController {
 
     const hashedPassword = await UsuariosController.hashPassword(senha);
     const user = await User.create({ nome, cpf, email, senha: hashedPassword, tipo });
-    await UsuarioSenhasHistoricoController.create(user.id_usuario, hashedPassword);
+    await UsuarioSenhasHistoricoController.create(UsuariosController.getUserId(user), hashedPassword);
     return res.status(201).send(UsuariosController.sanitizeUser(user));
   }
 
@@ -100,7 +105,9 @@ class UsuariosController {
       ? await UsuariosController.hashPassword(senha)
       : user.get("senha");
 
-    if (senha != null) await UsuarioSenhasHistoricoController.create(user.id_usuario, updatedSenha);
+    if (senha != null) {
+      await UsuarioSenhasHistoricoController.create(UsuariosController.getUserId(user), updatedSenha);
+    }
 
     await user.update({
       nome: nome ?? user.get("nome"),
@@ -128,7 +135,7 @@ class UsuariosController {
 
     const hashedPassword = await UsuariosController.hashPassword(senha);
     await user.update({ senha: hashedPassword });
-    await UsuarioSenhasHistoricoController.create(user.id_usuario, hashedPassword);
+    await UsuarioSenhasHistoricoController.create(UsuariosController.getUserId(user), hashedPassword);
 
     return res.status(204).send();
   }

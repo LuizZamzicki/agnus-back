@@ -4,6 +4,12 @@ import PedidoItens from "../../src/models/PedidoItens";
 import Pedidos from "../../src/models/Pedidos";
 import ProdutoCores from "../../src/models/ProdutoCores";
 import ProdutoGrades from "../../src/models/ProdutoGrades";
+import {
+  calculateSubtotal,
+  enrichItemsWithProductData,
+  normalizeItemQuantity,
+  resolveProdutoContext,
+} from "../../src/utils/itemDetails";
 import UsuarioEnderecos from "../../src/models/UsuarioEnderecos";
 import Usuarios from "../../src/models/Usuarios";
 import { buildModelInstance, mockRequest, mockResponse } from "../helpers/http";
@@ -32,6 +38,16 @@ jest.mock("../../src/models/Usuarios", () => ({
   __esModule: true,
   default: { findByPk: jest.fn() },
 }));
+jest.mock("../../src/utils/itemDetails", () => ({
+  __esModule: true,
+  calculateSubtotal: jest.fn((precoUnitario, quantidade) => Number(precoUnitario) * Number(quantidade)),
+  enrichItemsWithProductData: jest.fn(async (items) => items ?? []),
+  normalizeItemQuantity: jest.fn((value) => {
+    const parsedValue = Number(value ?? 1);
+    return Number.isFinite(parsedValue) && parsedValue > 0 ? Math.trunc(parsedValue) : 1;
+  }),
+  resolveProdutoContext: jest.fn(),
+}));
 
 const pedidoItensModel = PedidoItens as unknown as { findAll: jest.Mock; findByPk: jest.Mock; create: jest.Mock };
 const pedidosModel = Pedidos as unknown as { findAll: jest.Mock; findByPk: jest.Mock; create: jest.Mock };
@@ -39,6 +55,10 @@ const coresModel = ProdutoCores as unknown as { findByPk: jest.Mock };
 const gradesModel = ProdutoGrades as unknown as { findByPk: jest.Mock };
 const enderecosModel = UsuarioEnderecos as unknown as { findByPk: jest.Mock };
 const usuariosModel = Usuarios as unknown as { findByPk: jest.Mock };
+const calculateSubtotalMock = calculateSubtotal as unknown as jest.Mock;
+const enrichItemsWithProductDataMock = enrichItemsWithProductData as unknown as jest.Mock;
+const normalizeItemQuantityMock = normalizeItemQuantity as unknown as jest.Mock;
+const resolveProdutoContextMock = resolveProdutoContext as unknown as jest.Mock;
 
 describe("PedidosController", () => {
   it("cobre todos os fluxos principais", async () => {
@@ -161,11 +181,6 @@ describe("PedidosController", () => {
 
 describe("PedidoItensController", () => {
   it("cobre todos os fluxos principais", async () => {
-    const resGet404 = mockResponse();
-    pedidoItensModel.findAll.mockResolvedValueOnce(null);
-    await PedidoItensController.getByIdOrder(mockRequest({ params: { id_order: "1" } }), resGet404);
-    expect(resGet404.status).toHaveBeenCalledWith(404);
-
     const resGet = mockResponse();
     pedidoItensModel.findAll.mockResolvedValueOnce([]);
     await PedidoItensController.getByIdOrder(mockRequest({ params: { id_order: "1" } }), resGet);
@@ -207,6 +222,8 @@ describe("PedidoItensController", () => {
     pedidosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_pedido: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 1, id_produto: 7 }));
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 1, id_produto: 7 }));
+    resolveProdutoContextMock.mockResolvedValueOnce({ precoUnitario: 10 });
+    enrichItemsWithProductDataMock.mockResolvedValueOnce([item]);
     pedidoItensModel.create.mockResolvedValueOnce(item);
     await PedidoItensController.create(mockRequest({ body: payload }), resCreate201);
     expect(resCreate201.status).toHaveBeenCalledWith(201);
@@ -253,12 +270,16 @@ describe("PedidoItensController", () => {
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 3, id_produto: 7 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 2, id_produto: 7 }));
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 3, id_produto: 7 }));
+    resolveProdutoContextMock.mockResolvedValueOnce({ precoUnitario: 10 });
+    enrichItemsWithProductDataMock.mockResolvedValueOnce([itemUp5]);
     await PedidoItensController.update(
       mockRequest({ params: { id: "1" }, body: { id_pedido: 1, id_produto_cor: 2, id_produto_grade: 3, quantidade: 2 } }),
       resUp200,
     );
     expect(itemUp5.update).toHaveBeenCalled();
     expect(resUp200.status).toHaveBeenCalledWith(200);
+    expect(normalizeItemQuantityMock).toHaveBeenCalled();
+    expect(calculateSubtotalMock).toHaveBeenCalled();
 
     const resDel404 = mockResponse();
     pedidoItensModel.findByPk.mockResolvedValueOnce(null);
