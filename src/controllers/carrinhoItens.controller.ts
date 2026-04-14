@@ -10,6 +10,7 @@ import {
 } from "../utils/itemDetails";
 
 class CarrinhoItensController {
+
   static async getByIdCart(req: Request, res: Response) {
     const { id_cart } = req.params;
     const item = await CarrinhoItens.findAll({ where: { id_carrinho: Number(id_cart) } });
