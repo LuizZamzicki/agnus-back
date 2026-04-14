@@ -8,16 +8,10 @@ class UsuarioSenhasHistoricoController {
     const parsedUserId = Number(rawUserId);
     return Number.isInteger(parsedUserId) && parsedUserId > 0 ? parsedUserId : null;
   }
-   
-  static async findByPasswordHash(email : string, senha : string) : Promise<Date | null> {
 
-    const user = await Usuarios.findOne({where: {email}});
-    if (!user) {
-      return null;
-    }
-
-    const userId = UsuarioSenhasHistoricoController.getUserId(user);
-    if (userId == null) {
+  static async findByUserIdAndPassword(id_usuario: number, senha: string): Promise<Date | null> {
+    const userId = Number(id_usuario);
+    if (!Number.isInteger(userId) || userId <= 0) {
       return null;
     }
 
@@ -34,7 +28,21 @@ class UsuarioSenhasHistoricoController {
     }
 
     return null;
+  }
+   
+  static async findByPasswordHash(email : string, senha : string) : Promise<Date | null> {
 
+    const user = await Usuarios.findOne({where: {email}});
+    if (!user) {
+      return null;
+    }
+
+    const userId = UsuarioSenhasHistoricoController.getUserId(user);
+    if (userId == null) {
+      return null;
+    }
+
+    return UsuarioSenhasHistoricoController.findByUserIdAndPassword(userId, senha);
   }
 
   static async create( id_usuario:number, senhaHash : string) : Promise<boolean> {  

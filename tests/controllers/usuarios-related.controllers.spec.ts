@@ -7,6 +7,7 @@ import UsuarioContatos from "../../src/models/UsuarioContatos";
 import UsuarioEnderecos from "../../src/models/UsuarioEnderecos";
 import UsuarioSenhasHistorico from "../../src/models/UsuarioSenhasHistorico";
 import Usuarios from "../../src/models/Usuarios";
+import { evaluatePasswordStrength } from "../../src/utils/passwordStrength";
 import { buildModelInstance, mockRequest, mockResponse } from "../helpers/http";
 
 jest.mock("argon2", () => ({
@@ -86,10 +87,22 @@ describe("UsuariosController", () => {
     );
     expect(resCreateTipoBad.status).toHaveBeenCalledWith(400);
 
+    const resCreateWeakPass = mockResponse();
+    await UsuariosController.create(
+      mockRequest({ body: { nome: "A", email: "a@a.com", senha: "123Abc" } }),
+      resCreateWeakPass,
+    );
+    expect(resCreateWeakPass.status).toHaveBeenCalledWith(400);
+    expect(resCreateWeakPass.json).toHaveBeenCalledWith({
+      message:
+        "Senha fraca. Ela deve ter pelo menos 8 caracteres, com letra maiuscula, minuscula, numero e simbolo.",
+      passwordStrength: evaluatePasswordStrength("123Abc"),
+    });
+
     const resCreateDup = mockResponse();
     usuariosModel.findOne.mockResolvedValueOnce(user);
     await UsuariosController.create(
-      mockRequest({ body: { nome: "A", email: "a@a.com", senha: "123" } }),
+      mockRequest({ body: { nome: "A", email: "a@a.com", senha: "Senha123!" } }),
       resCreateDup,
     );
     expect(resCreateDup.status).toHaveBeenCalledWith(400);
@@ -101,7 +114,7 @@ describe("UsuariosController", () => {
     usuariosModel.create.mockResolvedValueOnce(created);
     const historicoSpy = jest.spyOn(UsuarioSenhasHistoricoController, "create").mockResolvedValueOnce(true);
     await UsuariosController.create(
-      mockRequest({ body: { nome: "B", email: "b@b.com", senha: "123" } }),
+      mockRequest({ body: { nome: "B", email: "b@b.com", senha: "Senha123!" } }),
       resCreate201,
     );
     expect(historicoSpy).toHaveBeenCalled();
@@ -144,6 +157,15 @@ describe("UsuariosController", () => {
     );
     expect(resUpdateTipoBad.status).toHaveBeenCalledWith(400);
 
+    const userUpdateWeakPass = buildModelInstance({ id_usuario: 2, nome: "B", cpf: null, email: "b@b.com", senha: "hash2", tipo: "cliente" });
+    const resUpdateWeakPass = mockResponse();
+    usuariosModel.findByPk.mockResolvedValueOnce(userUpdateWeakPass);
+    await UsuariosController.update(
+      mockRequest({ params: { id: "2" }, body: { senha: "abc123" } }),
+      resUpdateWeakPass,
+    );
+    expect(resUpdateWeakPass.status).toHaveBeenCalledWith(400);
+
     const userUpdate3 = buildModelInstance({ id_usuario: 2, nome: "B", cpf: null, email: "b@b.com", senha: "hash2", tipo: "cliente" });
     const resUpdate200 = mockResponse();
     const historicoSpy2 = jest.spyOn(UsuarioSenhasHistoricoController, "create").mockResolvedValueOnce(true);
@@ -151,7 +173,7 @@ describe("UsuariosController", () => {
     usuariosModel.findOne.mockResolvedValueOnce(null);
     argon2Mock.hash.mockResolvedValueOnce("hash3");
     await UsuariosController.update(
-      mockRequest({ params: { id: "2" }, body: { email: "new@new.com", senha: "abc", tipo: "administrador" } }),
+      mockRequest({ params: { id: "2" }, body: { email: "new@new.com", senha: "NovaSenha123!", tipo: "administrador" } }),
       resUpdate200,
     );
     expect(userUpdate3.update).toHaveBeenCalled();
@@ -170,26 +192,135 @@ describe("UsuariosController", () => {
     await UsuariosController.updatePassword(mockRequest({ params: { id: "2" }, body: {} }), resPassBad);
     expect(resPassBad.status).toHaveBeenCalledWith(400);
 
+    const resPassMismatch = mockResponse();
+    await UsuariosController.updatePassword(
+      mockRequest({
+        params: { id: "2" },
+        body: {
+          senha_atual: "123",
+          confirmacao_senha_atual: "321",
+          nova_senha: "Senha456!",
+        },
+      }),
+      resPassMismatch,
+    );
+    expect(resPassMismatch.status).toHaveBeenCalledWith(400);
+
+    const resPassWeak = mockResponse();
+    await UsuariosController.updatePassword(
+      mockRequest({
+        params: { id: "2" },
+        body: {
+          senha_atual: "123",
+          confirmacao_senha_atual: "123",
+          nova_senha: "456",
+        },
+      }),
+      resPassWeak,
+    );
+    expect(resPassWeak.status).toHaveBeenCalledWith(400);
+    expect(resPassWeak.json).toHaveBeenCalledWith({
+      message:
+        "Senha fraca. Ela deve ter pelo menos 8 caracteres, com letra maiuscula, minuscula, numero e simbolo.",
+      passwordStrength: evaluatePasswordStrength("456"),
+    });
+
     const resPass404 = mockResponse();
     usuariosModel.findByPk.mockResolvedValueOnce(null);
     await UsuariosController.updatePassword(
-      mockRequest({ params: { id: "2" }, body: { senha: "123" } }),
+      mockRequest({
+        params: { id: "2" },
+        body: {
+          senha_atual: "123",
+          confirmacao_senha_atual: "123",
+          nova_senha: "Senha456!",
+        },
+      }),
       resPass404,
     );
     expect(resPass404.status).toHaveBeenCalledWith(404);
 
+    const userPassInvalid = buildModelInstance({ id_usuario: 2, senha: "old" });
+    const resPassInvalid = mockResponse();
+    usuariosModel.findByPk.mockResolvedValueOnce(userPassInvalid);
+    argon2Mock.verify.mockResolvedValueOnce(false);
+    await UsuariosController.updatePassword(
+      mockRequest({
+        params: { id: "2" },
+        body: {
+          senha_atual: "123",
+          confirmacao_senha_atual: "123",
+          nova_senha: "Senha456!",
+        },
+      }),
+      resPassInvalid,
+    );
+    expect(resPassInvalid.status).toHaveBeenCalledWith(400);
+
+    const userPassSame = buildModelInstance({ id_usuario: 2, senha: "old" });
+    const resPassSame = mockResponse();
+    usuariosModel.findByPk.mockResolvedValueOnce(userPassSame);
+    argon2Mock.verify.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
+    await UsuariosController.updatePassword(
+      mockRequest({
+        params: { id: "2" },
+        body: {
+          senha_atual: "123",
+          confirmacao_senha_atual: "123",
+          nova_senha: "Senha123!",
+        },
+      }),
+      resPassSame,
+    );
+    expect(resPassSame.status).toHaveBeenCalledWith(400);
+
+    const userPassUsed = buildModelInstance({ id_usuario: 2, senha: "old" });
+    const resPassUsed = mockResponse();
+    const reusedSpy = jest
+      .spyOn(UsuarioSenhasHistoricoController, "findByUserIdAndPassword")
+      .mockResolvedValueOnce(new Date("2026-01-01"));
+    usuariosModel.findByPk.mockResolvedValueOnce(userPassUsed);
+    argon2Mock.verify.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    await UsuariosController.updatePassword(
+      mockRequest({
+        params: { id: "2" },
+        body: {
+          senha_atual: "123",
+          confirmacao_senha_atual: "123",
+          nova_senha: "Senha456!",
+        },
+      }),
+      resPassUsed,
+    );
+    expect(reusedSpy).toHaveBeenCalledWith(2, "Senha456!");
+    expect(resPassUsed.status).toHaveBeenCalledWith(400);
+    reusedSpy.mockRestore();
+
     const userPass = buildModelInstance({ id_usuario: 2, senha: "old" });
     const resPass204 = mockResponse();
     const historicoSpy3 = jest.spyOn(UsuarioSenhasHistoricoController, "create").mockResolvedValueOnce(true);
+    const reusedSpy2 = jest
+      .spyOn(UsuarioSenhasHistoricoController, "findByUserIdAndPassword")
+      .mockResolvedValueOnce(null);
     usuariosModel.findByPk.mockResolvedValueOnce(userPass);
+    argon2Mock.verify.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     argon2Mock.hash.mockResolvedValueOnce("hashN");
     await UsuariosController.updatePassword(
-      mockRequest({ params: { id: "2" }, body: { senha: "456" } }),
+      mockRequest({
+        params: { id: "2" },
+        body: {
+          senha_atual: "123",
+          confirmacao_senha_atual: "123",
+          nova_senha: "Senha456!",
+        },
+      }),
       resPass204,
     );
     expect(userPass.update).toHaveBeenCalled();
+    expect(reusedSpy2).toHaveBeenCalledWith(2, "Senha456!");
     expect(historicoSpy3).toHaveBeenCalled();
     expect(resPass204.status).toHaveBeenCalledWith(204);
+    reusedSpy2.mockRestore();
     historicoSpy3.mockRestore();
   });
 });
@@ -359,6 +490,14 @@ describe("UsuarioEnderecosController e UsuarioContatosController", () => {
 describe("UsuarioSenhasHistoricoController", () => {
   it("findByPasswordHash cobre fluxos e create cobre true/false", async () => {
     const user = buildModelInstance({ id_usuario: 1, email: "a@a.com" });
+
+    historicoModel.findAll.mockResolvedValueOnce([
+      { senha: "h1", data_criacao: new Date("2026-01-01") },
+      { senha: "h2", data_criacao: new Date("2026-01-02") },
+    ]);
+    argon2Mock.verify.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const foundByUserId = await UsuarioSenhasHistoricoController.findByUserIdAndPassword(1, "abc");
+    expect(foundByUserId).toEqual(new Date("2026-01-02"));
 
     usuariosModel.findOne.mockResolvedValueOnce(null);
     const notFound = await UsuarioSenhasHistoricoController.findByPasswordHash("a@a.com", "x");
