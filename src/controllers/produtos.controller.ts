@@ -21,10 +21,7 @@ type CatalogFilters = {
     offset: number;
   };
   whereSql: string;
-  replacements: {
-    id_categoria?: number;
-    ativo?: boolean;
-  };
+  replacements: Record<string, unknown>;
 };
 
 class ProdutosController {
@@ -74,6 +71,24 @@ class ProdutosController {
     }
 
     return parsedValue;
+  }
+
+  private static parseSearchTerms(query: Request["query"]) {
+    const rawSearch =
+      query.q ??
+      query.search ??
+      query.busca ??
+      query.descricao;
+
+    if (typeof rawSearch !== "string") {
+      return [];
+    }
+
+    return rawSearch
+      .trim()
+      .split(/\s+/)
+      .map((term) => term.trim())
+      .filter(Boolean);
   }
 
   private static parseFotoUrl(foto: unknown) {
@@ -162,6 +177,7 @@ class ProdutosController {
 
   private static buildCatalogFilters(query: Request["query"]): CatalogFilters | { message: string } {
     const { id_categoria, ativo } = query;
+    const searchTerms = ProdutosController.parseSearchTerms(query);
     const pagination = parsePagination(query);
     const whereClauses: string[] = [];
     const replacements: CatalogFilters["replacements"] = {};
@@ -188,6 +204,14 @@ class ProdutosController {
       replacements.ativo = ativo === "true";
     }
 
+    for (const [index, term] of searchTerms.entries()) {
+      const replacementKey = `search_${index}`;
+      whereClauses.push(
+        `(LOWER(p.nome) LIKE LOWER(:${replacementKey}) OR LOWER(COALESCE(p.descricao, '')) LIKE LOWER(:${replacementKey}))`,
+      );
+      replacements[replacementKey] = `%${term}%`;
+    }
+
     return {
       pagination,
       whereSql: whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "",
@@ -208,8 +232,10 @@ class ProdutosController {
 
   static async findAll(req: Request, res: Response) {
     const { id_categoria, ativo } = req.query;
+    const searchTerms = ProdutosController.parseSearchTerms(req.query);
     const pagination = parsePagination(req.query);
-    const where: { id_categoria?: number | null; ativo?: boolean } = {};
+    const where: Record<string | symbol, unknown> = {};
+    const andClauses: Record<string | symbol, unknown>[] = [];
 
     if (!pagination) {
       return res.status(400).json({ message: "page e limit devem ser inteiros positivos." });
@@ -229,6 +255,19 @@ class ProdutosController {
 
     if (ativo !== undefined) {
       where.ativo = ativo === "true";
+    }
+
+    for (const term of searchTerms) {
+      andClauses.push({
+        [Op.or]: [
+          { nome: { [Op.like]: `%${term}%` } },
+          { descricao: { [Op.like]: `%${term}%` } },
+        ],
+      });
+    }
+
+    if (andClauses.length > 0) {
+      where[Op.and] = andClauses;
     }
 
     const { count, rows } = await Produtos.findAndCountAll({

@@ -3,26 +3,28 @@ import PedidoItens from "../models/PedidoItens";
 import Pedidos from "../models/Pedidos";
 import ProdutoCores from "../models/ProdutoCores";
 import ProdutoGrades from "../models/ProdutoGrades";
+import {
+  calculateSubtotal,
+  enrichItemsWithProductData,
+  normalizeItemQuantity,
+  resolveProdutoContext,
+} from "../utils/itemDetails";
 
 class PedidoItensController {
-
   static async getByIdOrder(req: Request, res: Response) {
     const { id_order } = req.params;
     const item = await PedidoItens.findAll({ where: { id_pedido: Number(id_order) } });
+    const enrichedItems = await enrichItemsWithProductData(item);
 
-    if (!item) {
-      return res.status(404).json({ message: "Item do pedido não encontrado" });
-    }
-
-    return res.status(200).send(item);
+    return res.status(200).send(enrichedItems);
   }
 
   static async create(req: Request, res: Response) {
-    const { id_pedido, id_produto_cor, id_produto_grade, quantidade, preco_unitario } = req.body;
+    const { id_pedido, id_produto_cor, id_produto_grade, quantidade } = req.body;
 
-    if (!id_pedido || !id_produto_cor || !id_produto_grade || !quantidade || preco_unitario === undefined) {
+    if (!id_pedido || !id_produto_cor || !id_produto_grade || !quantidade) {
       return res.status(400).json({
-        message: "id_pedido, id_produto_cor, id_produto_grade, quantidade e preco_unitario são obrigatorios.",
+        message: "id_pedido, id_produto_cor, id_produto_grade e quantidade são obrigatorios.",
       });
     }
 
@@ -47,20 +49,28 @@ class PedidoItensController {
       });
     }
 
+    const produtoContext = await resolveProdutoContext(Number(id_produto_cor), Number(id_produto_grade));
+    if (!produtoContext) {
+      return res.status(404).json({ message: "Produto vinculado ao item não encontrado" });
+    }
+
+    const quantidadeNormalizada = normalizeItemQuantity(quantidade);
     const item = await PedidoItens.create({
       id_pedido: Number(id_pedido),
       id_produto_cor: Number(id_produto_cor),
       id_produto_grade: Number(id_produto_grade),
-      quantidade: Number(quantidade),
-      preco_unitario,
+      quantidade: quantidadeNormalizada,
+      preco_unitario: produtoContext.precoUnitario,
+      subtotal: calculateSubtotal(produtoContext.precoUnitario, quantidadeNormalizada),
     });
 
-    return res.status(201).send(item);
+    const [enrichedItem] = await enrichItemsWithProductData([item]);
+    return res.status(201).send(enrichedItem);
   }
 
   static async update(req: Request, res: Response) {
     const { id } = req.params;
-    const { id_pedido, id_produto_cor, id_produto_grade, quantidade, preco_unitario } = req.body;
+    const { id_pedido, id_produto_cor, id_produto_grade, quantidade } = req.body;
 
     const item = await PedidoItens.findByPk(Number(id));
     if (!item) {
@@ -100,15 +110,24 @@ class PedidoItensController {
       });
     }
 
+    const produtoContext = await resolveProdutoContext(nextIdCor, nextIdGrade);
+    if (!produtoContext) {
+      return res.status(404).json({ message: "Produto vinculado ao item não encontrado" });
+    }
+
+    const quantidadeNormalizada =
+      quantidade !== undefined ? normalizeItemQuantity(quantidade) : item.quantidade;
     await item.update({
       id_pedido: id_pedido !== undefined ? Number(id_pedido) : item.id_pedido,
       id_produto_cor: nextIdCor,
       id_produto_grade: nextIdGrade,
-      quantidade: quantidade !== undefined ? Number(quantidade) : item.quantidade,
-      preco_unitario: preco_unitario !== undefined ? preco_unitario : item.preco_unitario,
+      quantidade: quantidadeNormalizada,
+      preco_unitario: produtoContext.precoUnitario,
+      subtotal: calculateSubtotal(produtoContext.precoUnitario, quantidadeNormalizada),
     });
 
-    return res.status(200).send(item);
+    const [enrichedItem] = await enrichItemsWithProductData([item]);
+    return res.status(200).send(enrichedItem);
   }
 
   static async remove(req: Request, res: Response) {
