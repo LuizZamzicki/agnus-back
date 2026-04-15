@@ -28,6 +28,7 @@ app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 app.use('/produto_fotos', express.static(path.resolve(process.cwd(), 'produto_fotos')));
+app.use('/avaliacao_fotos', express.static(path.resolve(process.cwd(), 'avaliacao_fotos')));
 
 const router: Router = Router();
 
@@ -82,9 +83,9 @@ router.get('/product-reviews/:id_produto', AvaliacaoProdutosController.getByIdPr
 router.put('/product-reviews/:id', AvaliacaoProdutosController.update);
 router.delete('/product-reviews/:id', AvaliacaoProdutosController.remove);
 
-router.post('/product-review-photos', AvaliacaoFotosController.create);
+router.post('/product-review-photos', uploadAny, AvaliacaoFotosController.create);
 router.get('/product-review-photos/:id_review', AvaliacaoFotosController.getByIdReview);
-router.put('/product-review-photos/:id', AvaliacaoFotosController.update);
+router.put('/product-review-photos/:id', uploadAny, AvaliacaoFotosController.update);
 router.delete('/product-review-photos/:id', AvaliacaoFotosController.remove);
 
 router.get('/carts', CarrinhosController.findAll);
