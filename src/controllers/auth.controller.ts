@@ -3,6 +3,7 @@ import { AuthenticatedResponseLocals } from "../middlewares/auth.middleware";
 import Usuarios from "../models/Usuarios";
 import AuthService from "../services/auth.service";
 import type { ErrorLike } from "../types/errors.types";
+import { isValidEmail } from "../utils/userValidation";
 import UsuarioSenhasHistoricoController from "./usuarioSenhasHistorico.controller";
 
 type AuthResponse = Response<object, AuthenticatedResponseLocals>;
@@ -78,6 +79,7 @@ class AuthController {
   static async login(req: Request, res: Response) {
     const { email, senha } = req.body;
     if (!email || !senha) return res.status(400).json({ message: "Email e senha sao obrigatorios." });
+    if (!isValidEmail(String(email))) return res.status(400).json({ message: "email invalido." });
     const authResult = await AuthService.authenticate(email, senha);
     if (authResult) return res.status(200).json(authResult);
     return res.status(401).json({ message: await AuthController.buildLoginErrorMessage(email, senha) });

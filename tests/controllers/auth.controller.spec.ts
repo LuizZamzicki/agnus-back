@@ -59,6 +59,13 @@ describe("AuthController", () => {
     expect(response.json).toHaveBeenCalledWith({ message: "Email e senha sao obrigatorios." });
   });
 
+  it("login retorna 400 para email invalido", async () => {
+    const response = mockResponse();
+    await AuthController.login(mockRequest({ body: { email: "aaa", senha: "123" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "email invalido." });
+  });
+
   it("login informa reutilizacao de senha", async () => {
     const reusedAt = new Date("2026-01-01T12:00:00.000Z");
     const response = mockResponse(), nowSpy = jest.spyOn(Date, "now").mockReturnValue(reusedAt.getTime() + 5 * 60000);
