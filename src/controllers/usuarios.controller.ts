@@ -1,199 +1,179 @@
 import { Request, Response } from "express";
 import argon2 from "argon2";
-import User from "../models/Usuarios";
+import Usuarios from "../models/Usuarios";
+import type {
+  UsuarioBody,
+  UsuarioModelData,
+  UsuarioPasswordBody,
+  UsuarioPublicData,
+  UsuarioRouteParams,
+  UsuarioUpdateData,
+  UserRole,
+} from "../types/user.types";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
 import { evaluatePasswordStrength } from "../utils/passwordStrength";
 import UsuarioSenhasHistoricoController from "./usuarioSenhasHistorico.controller";
 
+type UsuarioRequest = Request<UsuarioRouteParams, object, UsuarioBody>;
+type UsuarioPasswordRequest = Request<UsuarioRouteParams, object, UsuarioPasswordBody>;
+type PasswordValidationError = { message: string; passwordStrength: ReturnType<typeof evaluatePasswordStrength> };
+
+class UsuarioPayload {
+  constructor(private readonly body: UsuarioBody) {}
+
+  private parseText(value: string | null | undefined) { return typeof value === "string" ? value.trim() || null : null; }
+  get nome() { return this.parseText(this.body.nome); }
+  get cpf() { return this.parseText(this.body.cpf); }
+  get email() { return this.parseText(this.body.email); }
+  get senha() { return this.parseText(this.body.senha); }
+  get tipo() { return UsuariosController.normalizeRole(this.body.tipo) ?? "cliente"; }
+  hasNomeField() { return this.body.nome !== undefined; }
+  hasCpfField() { return this.body.cpf !== undefined; }
+  hasEmailField() { return this.body.email !== undefined; }
+  hasSenhaField() { return this.body.senha !== undefined; }
+  hasTipoField() { return this.body.tipo !== undefined; }
+  hasValidTipo() { return this.body.tipo === undefined || UsuariosController.normalizeRole(this.body.tipo) !== null; }
+}
+
+class UsuarioPasswordPayload {
+  constructor(private readonly body: UsuarioPasswordBody) {}
+
+  private parseText(value: string | null | undefined) { return typeof value === "string" ? value.trim() || null : null; }
+  get senhaAtual() { return this.parseText(this.body.senha_atual ?? this.body.senhaAtual); }
+  get confirmacaoSenhaAtual() { return this.parseText(this.body.confirmacao_senha_atual ?? this.body.confirmacaoSenhaAtual); }
+  get novaSenha() { return this.parseText(this.body.nova_senha ?? this.body.novaSenha); }
+}
+
 class UsuariosController {
+  private static readonly PASSWORD_MESSAGE = "Senha fraca. Ela deve ter pelo menos 8 caracteres, com letra maiuscula, minuscula, numero e simbolo.";
+
+  static parsePositiveId(value: string | undefined) {
+    const userId = Number(value);
+    return Number.isInteger(userId) && userId > 0 ? userId : null;
+  }
+
+  static normalizeRole(value: UsuarioBody["tipo"]) {
+    return value === "cliente" || value === "administrador" ? value : null;
+  }
+
+  private static sanitizeUser(user: Usuarios): UsuarioPublicData {
+    const userData: UsuarioModelData = { id_usuario: user.id_usuario, nome: user.nome, cpf: user.cpf, email: user.email, senha: user.senha, google_id: user.google_id, tipo: user.tipo, data_criacao: user.data_criacao, data_alteracao: user.data_alteracao };
+    const { senha: _senha, ...publicUser } = userData;
+    return publicUser;
+  }
+
   private static async hashPassword(password: string) {
     return argon2.hash(password, { type: argon2.argon2id });
   }
 
-  private static getUserId(user: any) {
-    const rawUserId = typeof user?.get === "function" ? user.get("id_usuario") : user?.id_usuario;
-    return Number(rawUserId);
-  }
-
-  private static sanitizeUser(user: any) {
-    const userData = user.toJSON();
-    delete userData.senha;
-    return userData;
-  }
-
-  private static validatePasswordOrRespond(password: string, res: Response) {
+  private static getPasswordError(password: string): PasswordValidationError | null {
     const passwordStrength = evaluatePasswordStrength(password);
-    if (passwordStrength.isValid) return null;
+    return passwordStrength.isValid ? null : { message: UsuariosController.PASSWORD_MESSAGE, passwordStrength };
+  }
 
-    return res.status(400).json({
-      message: "Senha fraca. Ela deve ter pelo menos 8 caracteres, com letra maiuscula, minuscula, numero e simbolo.",
-      passwordStrength,
-    });
+  private static getCreateErrorMessage(payload: UsuarioPayload) {
+    if (!payload.nome || !payload.email || !payload.senha) return "Nome, email e senha sao obrigatorios.";
+    if (!payload.hasValidTipo()) return "Tipo deve ser cliente ou administrador.";
+    return null;
+  }
+
+  private static getUpdateErrorMessage(payload: UsuarioPayload) {
+    if (payload.hasNomeField() && !payload.nome) return "nome invalido.";
+    if (payload.hasEmailField() && !payload.email) return "email invalido.";
+    if (payload.hasSenhaField() && !payload.senha) return "senha invalida.";
+    if (!payload.hasValidTipo()) return "Tipo deve ser cliente ou administrador.";
+    return null;
+  }
+
+  private static async findDuplicateEmailMessage(email?: string | null, currentEmail?: string) {
+    return email && email !== currentEmail && (await Usuarios.findOne({ where: { email } })) ? "Usuario ja existe com esse email!" : null;
+  }
+
+  private static buildUpdateData(user: Usuarios, payload: UsuarioPayload, passwordHash: string): UsuarioUpdateData {
+    return { nome: payload.nome ?? user.nome, cpf: payload.hasCpfField() ? payload.cpf : user.cpf, email: payload.email ?? user.email, senha: passwordHash, tipo: payload.hasTipoField() ? payload.tipo : user.tipo };
+  }
+
+  private static getPasswordBodyMessage(payload: UsuarioPasswordPayload) {
+    if (!payload.senhaAtual || !payload.confirmacaoSenhaAtual || !payload.novaSenha) return "Senha atual, confirmacao da senha atual e nova senha sao obrigatorias.";
+    if (payload.senhaAtual !== payload.confirmacaoSenhaAtual) return "As duas informacoes da senha atual devem ser iguais.";
+    return null;
+  }
+
+  private static async getCurrentPasswordMessage(user: Usuarios, payload: UsuarioPasswordPayload) {
+    if (!(await argon2.verify(user.senha, payload.senhaAtual!))) return "Senha atual invalida.";
+    return await argon2.verify(user.senha, payload.novaSenha!) ? "A nova senha nao pode ser igual a senha atual." : null;
+  }
+
+  private static async updateStoredPassword(user: Usuarios, newPassword: string, res: Response) {
+    if (await UsuarioSenhasHistoricoController.findByUserIdAndPassword(user.id_usuario, newPassword)) return res.status(400).json({ message: "A nova senha ja foi utilizada anteriormente." });
+    const passwordHash = await UsuariosController.hashPassword(newPassword);
+    await user.update({ senha: passwordHash });
+    await UsuarioSenhasHistoricoController.create(user.id_usuario, passwordHash);
+    return res.status(204).send();
   }
 
   static async findAll(req: Request, res: Response) {
     const pagination = parsePagination(req.query);
     if (!pagination) return res.status(400).json({ message: "page e limit devem ser inteiros positivos." });
-
-    const { count, rows } = await User.findAndCountAll({
-      limit: pagination.limit,
-      offset: pagination.offset,
-      order: [["id_usuario", "ASC"]],
-    });
-    const data = rows.map((user) => UsuariosController.sanitizeUser(user));
-    return res.status(200).json({
-      data,
-      pagination: buildPaginationMeta(pagination.page, pagination.limit, count),
-    });
+    const { count, rows } = await Usuarios.findAndCountAll({ limit: pagination.limit, offset: pagination.offset, order: [["id_usuario", "ASC"]] });
+    return res.status(200).json({ data: rows.map((user) => UsuariosController.sanitizeUser(user)), pagination: buildPaginationMeta(pagination.page, pagination.limit, count) });
   }
 
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const user = await User.findByPk(Number(id));
-
-    if (!user) {
-      return res.status(404).json({ messsage: "Usuário não encontrado" });
-    }
-
+  static async getById(req: UsuarioRequest, res: Response) {
+    const userId = UsuariosController.parsePositiveId(req.params.id);
+    if (!userId) return res.status(400).json({ message: "ID do usuario invalido." });
+    const user = await Usuarios.findByPk(userId);
+    if (!user) return res.status(404).json({ message: "Usuario nao encontrado." });
     return res.status(200).send(UsuariosController.sanitizeUser(user));
   }
 
-  static async create(req: Request, res: Response) {
-    const { nome, cpf = null, email, senha, tipo = "cliente" } = req.body;
-
-    if (!nome || !email || !senha) {
-      return res.status(400).json({ message: "Nome, email e senha são obrigatórios!" });
-    }
-
-    if (tipo !== "cliente" && tipo !== "administrador") {
-      return res.status(400).json({ message: "Tipo deve ser cliente ou administrador." });
-    }
-
-    const invalidPasswordResponse = UsuariosController.validatePasswordOrRespond(senha, res);
-    if (invalidPasswordResponse) return invalidPasswordResponse;
-
-    const savedUser = await User.findOne({ where: { email } });
-    if (savedUser) {
-      return res.status(400).json({ message: "Usuário já existe com esse email!" });
-    }
-
-    const hashedPassword = await UsuariosController.hashPassword(senha);
-    const user = await User.create({ nome, cpf, email, senha: hashedPassword, tipo });
-    await UsuarioSenhasHistoricoController.create(UsuariosController.getUserId(user), hashedPassword);
+  static async create(req: UsuarioRequest, res: Response) {
+    const payload = new UsuarioPayload(req.body), message = UsuariosController.getCreateErrorMessage(payload);
+    if (message) return res.status(400).json({ message });
+    const passwordError = UsuariosController.getPasswordError(payload.senha!);
+    if (passwordError) return res.status(400).json(passwordError);
+    const duplicateMessage = await UsuariosController.findDuplicateEmailMessage(payload.email);
+    if (duplicateMessage) return res.status(400).json({ message: duplicateMessage });
+    const passwordHash = await UsuariosController.hashPassword(payload.senha!), user = await Usuarios.create({ nome: payload.nome!, cpf: payload.cpf, email: payload.email!, senha: passwordHash, tipo: payload.tipo });
+    await UsuarioSenhasHistoricoController.create(user.id_usuario, passwordHash);
     return res.status(201).send(UsuariosController.sanitizeUser(user));
   }
 
-  static async remove(req: Request, res: Response) {
-    const { id } = req.params;
-    const user = await User.findByPk(Number(id));
-
-    if (!user) {
-      return res.status(404).json({ messsage: "Usuário não encontrado" });
-    }
-
+  static async remove(req: UsuarioRequest, res: Response) {
+    const userId = UsuariosController.parsePositiveId(req.params.id);
+    if (!userId) return res.status(400).json({ message: "ID do usuario invalido." });
+    const user = await Usuarios.findByPk(userId);
+    if (!user) return res.status(404).json({ message: "Usuario nao encontrado." });
     await user.destroy();
     return res.status(204).send();
   }
 
-  static async update(req: Request, res: Response) {
-    const { id } = req.params;
-    const { nome, cpf, email, senha, tipo } = req.body;
-
-    const user = await User.findByPk(Number(id));
-    if (!user) {
-      return res.status(404).json({ messsage: "Usuário não encontrado" });
-    }
-
-    if (email && email !== user.get("email")) {
-      const duplicatedEmail = await User.findOne({ where: { email } });
-      if (duplicatedEmail) {
-        return res.status(400).json({ message: "Usuário já existe com esse email!" });
-      }
-    }
-
-    if (tipo && tipo !== "cliente" && tipo !== "administrador") {
-      return res.status(400).json({ message: "Tipo deve ser cliente ou administrador." });
-    }
-
-    if (senha != null) {
-      const invalidPasswordResponse = UsuariosController.validatePasswordOrRespond(senha, res);
-      if (invalidPasswordResponse) return invalidPasswordResponse;
-    }
-
-    const updatedSenha = senha
-      ? await UsuariosController.hashPassword(senha)
-      : user.get("senha");
-
-    if (senha != null) {
-      await UsuarioSenhasHistoricoController.create(UsuariosController.getUserId(user), updatedSenha);
-    }
-
-    await user.update({
-      nome: nome ?? user.get("nome"),
-      cpf: cpf !== undefined ? cpf : user.get("cpf"),
-      email: email ?? user.get("email"),
-      senha: updatedSenha,
-      tipo: tipo ?? user.get("tipo"),
-    });
-
+  static async update(req: UsuarioRequest, res: Response) {
+    const userId = UsuariosController.parsePositiveId(req.params.id), payload = new UsuarioPayload(req.body);
+    if (!userId) return res.status(400).json({ message: "ID do usuario invalido." });
+    const user = await Usuarios.findByPk(userId);
+    if (!user) return res.status(404).json({ message: "Usuario nao encontrado." });
+    const message = UsuariosController.getUpdateErrorMessage(payload), passwordError = payload.senha ? UsuariosController.getPasswordError(payload.senha) : null;
+    if (message) return res.status(400).json({ message });
+    if (passwordError) return res.status(400).json(passwordError);
+    const duplicateMessage = await UsuariosController.findDuplicateEmailMessage(payload.email, user.email), passwordHash = payload.senha ? await UsuariosController.hashPassword(payload.senha) : user.senha;
+    if (duplicateMessage) return res.status(400).json({ message: duplicateMessage });
+    if (payload.senha) await UsuarioSenhasHistoricoController.create(user.id_usuario, passwordHash);
+    await user.update(UsuariosController.buildUpdateData(user, payload, passwordHash));
     return res.status(200).send(UsuariosController.sanitizeUser(user));
   }
 
-  static async updatePassword(req: Request, res: Response) {
-    const { id } = req.params;
-    const senhaAtual = req.body.senha_atual ?? req.body.senhaAtual;
-    const confirmacaoSenhaAtual =
-      req.body.confirmacao_senha_atual ?? req.body.confirmacaoSenhaAtual;
-    const novaSenha = req.body.nova_senha ?? req.body.novaSenha;
-
-    if (!senhaAtual || !confirmacaoSenhaAtual || !novaSenha) {
-      return res.status(400).json({
-        message: "Senha atual, confirmacao da senha atual e nova senha sao obrigatorias.",
-      });
-    }
-
-    if (senhaAtual !== confirmacaoSenhaAtual) {
-      return res.status(400).json({
-        message: "As duas informacoes da senha atual devem ser iguais.",
-      });
-    }
-
-    const invalidPasswordResponse = UsuariosController.validatePasswordOrRespond(novaSenha, res);
-    if (invalidPasswordResponse) return invalidPasswordResponse;
-
-    const user = await User.findByPk(Number(id));
-    if (!user) {
-      return res.status(404).json({ message: "Usuário não encontrado" });
-    }
-
-    const senhaAtualHash = String(user.get("senha"));
-    const senhaAtualValida = await argon2.verify(senhaAtualHash, senhaAtual);
-    if (!senhaAtualValida) {
-      return res.status(400).json({ message: "Senha atual invalida." });
-    }
-
-    const novaSenhaJaEhAtual = await argon2.verify(senhaAtualHash, novaSenha);
-    if (novaSenhaJaEhAtual) {
-      return res.status(400).json({
-        message: "A nova senha nao pode ser igual a senha atual.",
-      });
-    }
-
-    const senhaJaUsada = await UsuarioSenhasHistoricoController.findByUserIdAndPassword(
-      UsuariosController.getUserId(user),
-      novaSenha,
-    );
-    if (senhaJaUsada) {
-      return res.status(400).json({
-        message: "A nova senha ja foi utilizada anteriormente.",
-      });
-    }
-
-    const hashedPassword = await UsuariosController.hashPassword(novaSenha);
-    await user.update({ senha: hashedPassword });
-    await UsuarioSenhasHistoricoController.create(UsuariosController.getUserId(user), hashedPassword);
-
-    return res.status(204).send();
+  static async updatePassword(req: UsuarioPasswordRequest, res: Response) {
+    const userId = UsuariosController.parsePositiveId(req.params.id), payload = new UsuarioPasswordPayload(req.body);
+    if (!userId) return res.status(400).json({ message: "ID do usuario invalido." });
+    const bodyMessage = UsuariosController.getPasswordBodyMessage(payload), passwordError = payload.novaSenha ? UsuariosController.getPasswordError(payload.novaSenha) : null;
+    if (bodyMessage) return res.status(400).json({ message: bodyMessage });
+    if (passwordError) return res.status(400).json(passwordError);
+    const user = await Usuarios.findByPk(userId);
+    if (!user) return res.status(404).json({ message: "Usuario nao encontrado." });
+    const currentPasswordMessage = await UsuariosController.getCurrentPasswordMessage(user, payload);
+    if (currentPasswordMessage) return res.status(400).json({ message: currentPasswordMessage });
+    return UsuariosController.updateStoredPassword(user, payload.novaSenha!, res);
   }
 }
 

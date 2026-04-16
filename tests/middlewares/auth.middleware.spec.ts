@@ -15,123 +15,111 @@ jest.mock("../../src/services/auth.service", () => ({
   default: { verifyToken: jest.fn() },
 }));
 
-const usuariosModel = Usuarios as unknown as { findByPk: jest.Mock };
-const authService = AuthService as unknown as { verifyToken: jest.Mock };
+type UsuariosModelMock = { findByPk: jest.Mock };
+type AuthServiceMock = { verifyToken: jest.Mock };
+
+const usuariosModel = Usuarios as typeof Usuarios & UsuariosModelMock;
+const authService = AuthService as typeof AuthService & AuthServiceMock;
 
 describe("auth.middleware", () => {
-  it("authenticateToken cobre todos os fluxos", async () => {
-    const next = jest.fn();
+  it("authenticateToken retorna 401 sem token", async () => {
+    const next = jest.fn(), response = mockResponse();
+    await authenticateToken(mockRequest(), response, next);
+    expect(response.status).toHaveBeenCalledWith(401);
+    expect(response.json).toHaveBeenCalledWith({ message: "Token nao informado." });
+  });
 
-    const resMissing = mockResponse();
-    await authenticateToken(mockRequest(), resMissing, next);
-    expect(resMissing.status).toHaveBeenCalledWith(401);
-
-    const resInvalid = mockResponse();
+  it("authenticateToken retorna 401 para token invalido", async () => {
+    const next = jest.fn(), response = mockResponse();
     authService.verifyToken.mockReturnValueOnce(null);
-    await authenticateToken(
-      mockRequest({ headers: { authorization: "Bearer token" } }),
-      resInvalid,
-      next,
-    );
-    expect(resInvalid.status).toHaveBeenCalledWith(401);
+    await authenticateToken(mockRequest({ headers: { authorization: "Bearer token" } }), response, next);
+    expect(response.status).toHaveBeenCalledWith(401);
+    expect(response.json).toHaveBeenCalledWith({ message: "Token invalido ou expirado." });
+  });
 
-    const resUserMissing = mockResponse();
-    authService.verifyToken.mockReturnValueOnce({
-      id_usuario: 1,
-      email: "a@a.com",
-      tipo: "cliente",
-    });
+  it("authenticateToken retorna 401 quando o usuario do token nao existe", async () => {
+    const next = jest.fn(), response = mockResponse();
+    authService.verifyToken.mockReturnValueOnce({ id_usuario: 1, email: "a@a.com", tipo: "cliente" });
     usuariosModel.findByPk.mockResolvedValueOnce(null);
-    await authenticateToken(
-      mockRequest({ headers: { authorization: "Bearer token" } }),
-      resUserMissing,
-      next,
-    );
-    expect(resUserMissing.status).toHaveBeenCalledWith(401);
-
-    const resStale = mockResponse();
-    authService.verifyToken.mockReturnValueOnce({
-      id_usuario: 1,
-      email: "old@a.com",
-      tipo: "cliente",
-    });
-    usuariosModel.findByPk.mockResolvedValueOnce(
-      buildModelInstance({ id_usuario: 1, email: "new@a.com", tipo: "cliente" }),
-    );
-    await authenticateToken(
-      mockRequest({ headers: { authorization: "Bearer token" } }),
-      resStale,
-      next,
-    );
-    expect(resStale.status).toHaveBeenCalledWith(401);
-
-    const resOk = mockResponse();
-    authService.verifyToken.mockReturnValueOnce({
-      id_usuario: 1,
-      email: "a@a.com",
-      tipo: "administrador",
-    });
-    usuariosModel.findByPk.mockResolvedValueOnce(
-      buildModelInstance({ id_usuario: 1, email: "a@a.com", tipo: "administrador" }),
-    );
-    await authenticateToken(
-      mockRequest({ headers: { authorization: "Bearer token" } }),
-      resOk,
-      next,
-    );
-    expect(resOk.locals.authUser).toEqual({
-      id_usuario: 1,
-      email: "a@a.com",
-      tipo: "administrador",
-    });
-    expect(next).toHaveBeenCalled();
+    await authenticateToken(mockRequest({ headers: { authorization: "Bearer token" } }), response, next);
+    expect(response.status).toHaveBeenCalledWith(401);
+    expect(response.json).toHaveBeenCalledWith({ message: "Usuario do token nao existe mais." });
   });
 
-  it("authorizeRoles cobre 401/403/next", () => {
-    const next = jest.fn();
-    const middleware = authorizeRoles("administrador");
-
-    const res401 = mockResponse();
-    middleware(mockRequest(), res401, next);
-    expect(res401.status).toHaveBeenCalledWith(401);
-
-    const res403 = mockResponse();
-    res403.locals.authUser = { id_usuario: 1, email: "a@a.com", tipo: "cliente" };
-    middleware(mockRequest(), res403, next);
-    expect(res403.status).toHaveBeenCalledWith(403);
-
-    const res200 = mockResponse();
-    res200.locals.authUser = { id_usuario: 1, email: "a@a.com", tipo: "administrador" };
-    middleware(mockRequest(), res200, next);
-    expect(next).toHaveBeenCalled();
+  it("authenticateToken retorna 401 quando o token esta desatualizado", async () => {
+    const next = jest.fn(), response = mockResponse();
+    authService.verifyToken.mockReturnValueOnce({ id_usuario: 1, email: "old@a.com", tipo: "cliente" });
+    usuariosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario: 1, email: "new@a.com", tipo: "cliente" }) as never as Usuarios);
+    await authenticateToken(mockRequest({ headers: { authorization: "Bearer token" } }), response, next);
+    expect(response.status).toHaveBeenCalledWith(401);
+    expect(response.json).toHaveBeenCalledWith({ message: "Token desatualizado. Faca login novamente." });
   });
 
-  it("authorizeSelfOrAdmin cobre 401/admin/400/403/next", () => {
-    const next = jest.fn();
-    const middleware = authorizeSelfOrAdmin("id");
+  it("authenticateToken define authUser e chama next no sucesso", async () => {
+    const next = jest.fn(), response = mockResponse();
+    authService.verifyToken.mockReturnValueOnce({ id_usuario: 1, email: "a@a.com", tipo: "administrador" });
+    usuariosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario: 1, email: "a@a.com", tipo: "administrador" }) as never as Usuarios);
+    await authenticateToken(mockRequest({ headers: { authorization: "Bearer token" } }), response, next);
+    expect(response.locals.authUser).toEqual({ id_usuario: 1, email: "a@a.com", tipo: "administrador" });
+    expect(next).toHaveBeenCalledTimes(1);
+  });
 
-    const res401 = mockResponse();
-    middleware(mockRequest(), res401, next);
-    expect(res401.status).toHaveBeenCalledWith(401);
+  it("authorizeRoles retorna 401 sem autenticacao", () => {
+    const next = jest.fn(), middleware = authorizeRoles("administrador"), response = mockResponse();
+    middleware(mockRequest(), response, next);
+    expect(response.status).toHaveBeenCalledWith(401);
+    expect(response.json).toHaveBeenCalledWith({ message: "Nao autenticado." });
+  });
 
-    const resAdmin = mockResponse();
-    resAdmin.locals.authUser = { id_usuario: 1, email: "a@a.com", tipo: "administrador" };
-    middleware(mockRequest({ params: { id: "9" } }), resAdmin, next);
-    expect(next).toHaveBeenCalled();
+  it("authorizeRoles retorna 403 sem permissao", () => {
+    const next = jest.fn(), middleware = authorizeRoles("administrador"), response = mockResponse();
+    response.locals.authUser = { id_usuario: 1, email: "a@a.com", tipo: "cliente" };
+    middleware(mockRequest(), response, next);
+    expect(response.status).toHaveBeenCalledWith(403);
+    expect(response.json).toHaveBeenCalledWith({ message: "Sem permissao para este recurso." });
+  });
 
-    const res400 = mockResponse();
-    res400.locals.authUser = { id_usuario: 2, email: "b@b.com", tipo: "cliente" };
-    middleware(mockRequest({ params: { id: "x" } }), res400, next);
-    expect(res400.status).toHaveBeenCalledWith(400);
+  it("authorizeRoles chama next quando o papel e permitido", () => {
+    const next = jest.fn(), middleware = authorizeRoles("administrador"), response = mockResponse();
+    response.locals.authUser = { id_usuario: 1, email: "a@a.com", tipo: "administrador" };
+    middleware(mockRequest(), response, next);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
 
-    const res403 = mockResponse();
-    res403.locals.authUser = { id_usuario: 2, email: "b@b.com", tipo: "cliente" };
-    middleware(mockRequest({ params: { id: "3" } }), res403, next);
-    expect(res403.status).toHaveBeenCalledWith(403);
+  it("authorizeSelfOrAdmin retorna 401 sem autenticacao", () => {
+    const next = jest.fn(), middleware = authorizeSelfOrAdmin("id"), response = mockResponse();
+    middleware(mockRequest(), response, next);
+    expect(response.status).toHaveBeenCalledWith(401);
+    expect(response.json).toHaveBeenCalledWith({ message: "Nao autenticado." });
+  });
 
-    const resOk = mockResponse();
-    resOk.locals.authUser = { id_usuario: 2, email: "b@b.com", tipo: "cliente" };
-    middleware(mockRequest({ params: { id: "2" } }), resOk, next);
-    expect(next).toHaveBeenCalled();
+  it("authorizeSelfOrAdmin libera administrador", () => {
+    const next = jest.fn(), middleware = authorizeSelfOrAdmin("id"), response = mockResponse();
+    response.locals.authUser = { id_usuario: 1, email: "a@a.com", tipo: "administrador" };
+    middleware(mockRequest({ params: { id: "9" } }), response, next);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("authorizeSelfOrAdmin retorna 400 para id invalido", () => {
+    const next = jest.fn(), middleware = authorizeSelfOrAdmin("id"), response = mockResponse();
+    response.locals.authUser = { id_usuario: 2, email: "b@b.com", tipo: "cliente" };
+    middleware(mockRequest({ params: { id: "x" } }), response, next);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID de usuario invalido." });
+  });
+
+  it("authorizeSelfOrAdmin retorna 403 para outro usuario", () => {
+    const next = jest.fn(), middleware = authorizeSelfOrAdmin("id"), response = mockResponse();
+    response.locals.authUser = { id_usuario: 2, email: "b@b.com", tipo: "cliente" };
+    middleware(mockRequest({ params: { id: "3" } }), response, next);
+    expect(response.status).toHaveBeenCalledWith(403);
+    expect(response.json).toHaveBeenCalledWith({ message: "Voce so pode acessar o proprio usuario." });
+  });
+
+  it("authorizeSelfOrAdmin chama next para o proprio usuario", () => {
+    const next = jest.fn(), middleware = authorizeSelfOrAdmin("id"), response = mockResponse();
+    response.locals.authUser = { id_usuario: 2, email: "b@b.com", tipo: "cliente" };
+    middleware(mockRequest({ params: { id: "2" } }), response, next);
+    expect(next).toHaveBeenCalledTimes(1);
   });
 });

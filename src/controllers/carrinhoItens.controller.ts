@@ -3,135 +3,128 @@ import CarrinhoItens from "../models/CarrinhoItens";
 import Carrinhos from "../models/Carrinhos";
 import ProdutoCores from "../models/ProdutoCores";
 import ProdutoGrades from "../models/ProdutoGrades";
+import type {
+  CarrinhoItemBody,
+  CarrinhoItemControllerError,
+  CarrinhoItemMutationData,
+  CarrinhoItemRouteParams,
+  CarrinhoItemSelection,
+} from "../types/carrinho-item.types";
+
 import {
   enrichItemsWithProductData,
   normalizeItemQuantity,
   resolveProdutoContext,
 } from "../utils/itemDetails";
 
+type CarrinhoItemRequest = Request<CarrinhoItemRouteParams, object, CarrinhoItemBody>;
+
+class CarrinhoItemPayload {
+  constructor(private readonly body: CarrinhoItemBody) {}
+
+  private parseId(value: number | string | null | undefined) {
+    const parsedId = Number(value);
+    return Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
+  }
+
+  get cartId() { return this.parseId(this.body.id_carrinho); }
+  get colorId() { return this.parseId(this.body.id_produto_cor); }
+  get gradeId() { return this.parseId(this.body.id_produto_grade); }
+  get quantidade() { return normalizeItemQuantity(this.body.quantidade); }
+  hasCartField() { return this.body.id_carrinho !== undefined; }
+  hasColorField() { return this.body.id_produto_cor !== undefined; }
+  hasGradeField() { return this.body.id_produto_grade !== undefined; }
+  hasQuantidadeField() { return this.body.quantidade !== undefined; }
+}
+
 class CarrinhoItensController {
-  static async getByIdCart(req: Request, res: Response) {
-    const { id_cart } = req.params;
-    const item = await CarrinhoItens.findAll({ where: { id_carrinho: Number(id_cart) } });
-    const enrichedItems = await enrichItemsWithProductData(item);
-
-    return res.status(200).send(enrichedItems);
+  private static parsePositiveId(value: string | undefined) {
+    const parsedId = Number(value);
+    return Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
   }
 
-  static async create(req: Request, res: Response) {
-    const { id_carrinho, id_produto_cor, id_produto_grade, quantidade = 1 } = req.body;
-
-    if (!id_carrinho || !id_produto_cor || !id_produto_grade) {
-      return res.status(400).json({
-        message: "id_carrinho, id_produto_cor e id_produto_grade são obrigatórios.",
-      });
-    }
-
-    const carrinho = await Carrinhos.findByPk(Number(id_carrinho));
-    if (!carrinho) {
-      return res.status(404).json({ message: "Carrinho não encontrado" });
-    }
-
-    const cor = await ProdutoCores.findByPk(Number(id_produto_cor));
-    if (!cor) {
-      return res.status(404).json({ message: "Cor do produto não encontrada" });
-    }
-
-    const grade = await ProdutoGrades.findByPk(Number(id_produto_grade));
-    if (!grade) {
-      return res.status(404).json({ message: "Grade do produto não encontrada" });
-    }
-
-    if (cor.id_produto !== grade.id_produto) {
-      return res.status(400).json({
-        message: "A cor e a grade informadas não pertencem ao mesmo produto.",
-      });
-    }
-
-    const produtoContext = await resolveProdutoContext(Number(id_produto_cor), Number(id_produto_grade));
-    if (!produtoContext) {
-      return res.status(404).json({ message: "Produto vinculado ao item não encontrado" });
-    }
-
-    const item = await CarrinhoItens.create({
-      id_carrinho: Number(id_carrinho),
-      id_produto_cor: Number(id_produto_cor),
-      id_produto_grade: Number(id_produto_grade),
-      quantidade: normalizeItemQuantity(quantidade),
-      preco_unitario: produtoContext.precoUnitario,
-    });
-
-    const [enrichedItem] = await enrichItemsWithProductData([item]);
-    return res.status(201).send(enrichedItem);
+  private static getCreateErrorMessage(payload: CarrinhoItemPayload) {
+    if (!payload.hasCartField() || !payload.hasColorField() || !payload.hasGradeField()) return "id_carrinho, id_produto_cor e id_produto_grade sao obrigatorios.";
+    if (!payload.cartId) return "id_carrinho invalido.";
+    if (!payload.colorId) return "id_produto_cor invalido.";
+    if (!payload.gradeId) return "id_produto_grade invalido.";
+    return null;
   }
 
-  static async update(req: Request, res: Response) {
-    const { id } = req.params;
-    const { id_carrinho, id_produto_cor, id_produto_grade, quantidade } = req.body;
-
-    const item = await CarrinhoItens.findByPk(Number(id));
-    if (!item) {
-      return res.status(404).json({ message: "Item do carrinho não encontrado" });
-    }
-
-    if (id_carrinho !== undefined) {
-      const carrinho = await Carrinhos.findByPk(Number(id_carrinho));
-      if (!carrinho) {
-        return res.status(404).json({ message: "Carrinho não encontrado" });
-      }
-    }
-
-    const nextIdCor = id_produto_cor !== undefined ? Number(id_produto_cor) : item.id_produto_cor;
-    const nextIdGrade =
-      id_produto_grade !== undefined ? Number(id_produto_grade) : item.id_produto_grade;
-
-    if (id_produto_cor !== undefined) {
-      const cor = await ProdutoCores.findByPk(nextIdCor);
-      if (!cor) {
-        return res.status(404).json({ message: "Cor do produto não encontrada" });
-      }
-    }
-
-    if (id_produto_grade !== undefined) {
-      const grade = await ProdutoGrades.findByPk(nextIdGrade);
-      if (!grade) {
-        return res.status(404).json({ message: "Grade do produto não encontrada" });
-      }
-    }
-
-    const corFinal = await ProdutoCores.findByPk(nextIdCor);
-    const gradeFinal = await ProdutoGrades.findByPk(nextIdGrade);
-    if (!corFinal || !gradeFinal || corFinal.id_produto !== gradeFinal.id_produto) {
-      return res.status(400).json({
-        message: "A cor e a grade informadas não pertencem ao mesmo produto.",
-      });
-    }
-
-    const produtoContext = await resolveProdutoContext(nextIdCor, nextIdGrade);
-    if (!produtoContext) {
-      return res.status(404).json({ message: "Produto vinculado ao item não encontrado" });
-    }
-
-    await item.update({
-      id_carrinho: id_carrinho !== undefined ? Number(id_carrinho) : item.id_carrinho,
-      id_produto_cor: nextIdCor,
-      id_produto_grade: nextIdGrade,
-      quantidade: quantidade !== undefined ? normalizeItemQuantity(quantidade) : item.quantidade,
-      preco_unitario: produtoContext.precoUnitario,
-    });
-
-    const [enrichedItem] = await enrichItemsWithProductData([item]);
-    return res.status(200).send(enrichedItem);
+  private static getUpdateErrorMessage(payload: CarrinhoItemPayload) {
+    if (payload.hasCartField() && !payload.cartId) return "id_carrinho invalido.";
+    if (payload.hasColorField() && !payload.colorId) return "id_produto_cor invalido.";
+    if (payload.hasGradeField() && !payload.gradeId) return "id_produto_grade invalido.";
+    return null;
   }
 
-  static async remove(req: Request, res: Response) {
-    const { id } = req.params;
-    const item = await CarrinhoItens.findByPk(Number(id));
+  private static async findCartError(payload: CarrinhoItemPayload) {
+    return payload.hasCartField() && !(await Carrinhos.findByPk(payload.cartId!)) ? "Carrinho nao encontrado." : null;
+  }
 
-    if (!item) {
-      return res.status(404).json({ message: "Item do carrinho não encontrado" });
-    }
+  private static buildSelection(item: CarrinhoItens | null, payload: CarrinhoItemPayload): CarrinhoItemSelection {
+    return { colorId: payload.colorId ?? item!.id_produto_cor, gradeId: payload.gradeId ?? item!.id_produto_grade };
+  }
 
+  private static async resolveSelectionError(selection: CarrinhoItemSelection): Promise<CarrinhoItemControllerError | null> {
+    const cor = await ProdutoCores.findByPk(selection.colorId), grade = await ProdutoGrades.findByPk(selection.gradeId);
+    if (!cor) return { status: 404, message: "Cor do produto nao encontrada." };
+    if (!grade) return { status: 404, message: "Grade do produto nao encontrada." };
+    return cor.id_produto === grade.id_produto ? null : { status: 400, message: "A cor e a grade informadas nao pertencem ao mesmo produto." };
+  }
+
+  private static async resolvePrecoUnitario(selection: CarrinhoItemSelection) {
+    return (await resolveProdutoContext(selection.colorId, selection.gradeId))?.precoUnitario ?? null;
+  }
+
+  private static async enrichItem(item: CarrinhoItens) {
+    return (await enrichItemsWithProductData([item]))[0];
+  }
+
+  private static buildCreateData(payload: CarrinhoItemPayload, precoUnitario: number): CarrinhoItemMutationData {
+    return { id_carrinho: payload.cartId!, id_produto_cor: payload.colorId!, id_produto_grade: payload.gradeId!, quantidade: payload.quantidade, preco_unitario: precoUnitario };
+  }
+
+  private static buildUpdateData(item: CarrinhoItens, payload: CarrinhoItemPayload, selection: CarrinhoItemSelection, precoUnitario: number): CarrinhoItemMutationData {
+    return { id_carrinho: payload.cartId ?? item.id_carrinho, id_produto_cor: selection.colorId, id_produto_grade: selection.gradeId, quantidade: payload.hasQuantidadeField() ? payload.quantidade : item.quantidade ?? 1, preco_unitario: precoUnitario };
+  }
+
+  static async getByIdCart(req: CarrinhoItemRequest, res: Response) {
+    const cartId = CarrinhoItensController.parsePositiveId(req.params.id_cart);
+    if (!cartId) return res.status(400).json({ message: "ID do carrinho invalido." });
+    const items = await CarrinhoItens.findAll({ where: { id_carrinho: cartId } });
+    return res.status(200).send(await enrichItemsWithProductData(items));
+  }
+
+  static async create(req: CarrinhoItemRequest, res: Response) {
+    const payload = new CarrinhoItemPayload(req.body), message = CarrinhoItensController.getCreateErrorMessage(payload);
+    if (message) return res.status(400).json({ message });
+    const cartMessage = await CarrinhoItensController.findCartError(payload), selection = CarrinhoItensController.buildSelection(null, payload), selectionError = await CarrinhoItensController.resolveSelectionError(selection), precoUnitario = selectionError ? null : await CarrinhoItensController.resolvePrecoUnitario(selection);
+    if (cartMessage) return res.status(404).json({ message: cartMessage });
+    if (selectionError) return res.status(selectionError.status).json({ message: selectionError.message });
+    if (precoUnitario === null) return res.status(404).json({ message: "Produto vinculado ao item nao encontrado." });
+    return res.status(201).send(await CarrinhoItensController.enrichItem(await CarrinhoItens.create(CarrinhoItensController.buildCreateData(payload, precoUnitario))));
+  }
+
+  static async update(req: CarrinhoItemRequest, res: Response) {
+    const itemId = CarrinhoItensController.parsePositiveId(req.params.id), payload = new CarrinhoItemPayload(req.body);
+    if (!itemId) return res.status(400).json({ message: "ID do item invalido." });
+    const item = await CarrinhoItens.findByPk(itemId), message = CarrinhoItensController.getUpdateErrorMessage(payload);
+    if (!item) return res.status(404).json({ message: "Item do carrinho nao encontrado." });
+    if (message) return res.status(400).json({ message });
+    const cartMessage = await CarrinhoItensController.findCartError(payload), selection = CarrinhoItensController.buildSelection(item, payload), selectionError = await CarrinhoItensController.resolveSelectionError(selection), precoUnitario = selectionError ? null : await CarrinhoItensController.resolvePrecoUnitario(selection);
+    if (cartMessage) return res.status(404).json({ message: cartMessage });
+    if (selectionError) return res.status(selectionError.status).json({ message: selectionError.message });
+    if (precoUnitario === null) return res.status(404).json({ message: "Produto vinculado ao item nao encontrado." });
+    await item.update(CarrinhoItensController.buildUpdateData(item, payload, selection, precoUnitario));
+    return res.status(200).send(await CarrinhoItensController.enrichItem(item));
+  }
+
+  static async remove(req: CarrinhoItemRequest, res: Response) {
+    const itemId = CarrinhoItensController.parsePositiveId(req.params.id);
+    if (!itemId) return res.status(400).json({ message: "ID do item invalido." });
+    const item = await CarrinhoItens.findByPk(itemId);
+    if (!item) return res.status(404).json({ message: "Item do carrinho nao encontrado." });
     await item.destroy();
     return res.status(204).send();
   }

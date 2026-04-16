@@ -1,8 +1,11 @@
 import { Request, Response } from "express";
 import { AuthenticatedResponseLocals } from "../middlewares/auth.middleware";
-import User from "../models/Usuarios";
+import Usuarios from "../models/Usuarios";
 import AuthService from "../services/auth.service";
+import type { ErrorLike } from "../types/errors.types";
 import UsuarioSenhasHistoricoController from "./usuarioSenhasHistorico.controller";
+
+type AuthResponse = Response<object, AuthenticatedResponseLocals>;
 
 class AuthController {
   private static getFrontendUrl() {
@@ -19,91 +22,91 @@ class AuthController {
   }
 
   private static formatElapsedTime(date: Date) {
-    const now = Date.now();
-    const diffMs = now - date.getTime();
-    const minutes = Math.floor(diffMs / 60000);
-    const hours = Math.floor(diffMs / 3600000);
-    const days = Math.floor(diffMs / 86400000);
+    const minutes = Math.floor((Date.now() - date.getTime()) / 60000);
     if (minutes < 1) return "agora mesmo";
     if (minutes < 60) return `ha ${minutes} minuto${minutes > 1 ? "s" : ""}`;
+    const hours = Math.floor(minutes / 60);
     if (hours < 24) return `ha ${hours} hora${hours > 1 ? "s" : ""}`;
+    const days = Math.floor(hours / 24);
     return `ha ${days} dia${days > 1 ? "s" : ""}`;
   }
 
   private static formatDateTime(date: Date) {
-    return new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-      timeZone: "America/Sao_Paulo",
-    }).format(date);
+    return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(date);
+  }
+
+  private static buildPasswordReuseMessage(date: Date) {
+    const elapsedTime = AuthController.formatElapsedTime(date);
+    const formattedDate = AuthController.formatDateTime(date);
+    return `Essa senha ja foi usada ${elapsedTime} (em ${formattedDate}).`;
+  }
+
+  private static async buildLoginErrorMessage(email: string, senha: string) {
+    const reusedAt = await UsuarioSenhasHistoricoController.findByPasswordHash(email, senha);
+    if (!reusedAt) return "Credenciais invalidas.";
+    return AuthController.buildPasswordReuseMessage(reusedAt);
+  }
+
+  private static getGoogleErrorRedirect(query: Request["query"]) {
+    if (!query.error) return null;
+    return AuthController.buildLoginErrorRedirect(`Google OAuth retornou erro: ${String(query.error)}`);
+  }
+
+  private static getGoogleCallbackParams(query: Request["query"]) {
+    const { code, state } = query;
+    return typeof code === "string" && typeof state === "string" ? { code, state } : null;
+  }
+
+  private static getErrorMessage(error: ErrorLike, fallback: string) {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "string") return error;
+    if (error && 
+        typeof error === "object" && 
+        "message" in error && 
+        typeof error.message === "string") { 
+          return error.message;
+      }
+
+    return fallback;
+  }
+
+  private static async buildGoogleSuccessRedirect(code: string, state: string) {
+    const authResult = await AuthService.authenticateWithGoogle(code, state);
+    return AuthController.buildLoginSuccessRedirect(authResult.token, authResult.user.tipo);
   }
 
   static async login(req: Request, res: Response) {
     const { email, senha } = req.body;
-    if (!email || !senha) {
-      return res.status(400).json({ message: "Email e senha sao obrigatorios." });
-    }
-
+    if (!email || !senha) return res.status(400).json({ message: "Email e senha sao obrigatorios." });
     const authResult = await AuthService.authenticate(email, senha);
-    if (!authResult) {
-      const senhaJaUsada = await UsuarioSenhasHistoricoController.findByPasswordHash(email, senha);
-      if (senhaJaUsada != null) {
-        const elapsedTime = AuthController.formatElapsedTime(senhaJaUsada);
-        const dataFormatada = AuthController.formatDateTime(senhaJaUsada);
-        return res.status(401).json({
-          message: `Essa senha ja foi usada ${elapsedTime} (em ${dataFormatada}).`,
-        });
-      }
-
-      return res.status(401).json({ message: "Credenciais invalidas." });
-    }
-
-    return res.status(200).json(authResult);
+    if (authResult) return res.status(200).json(authResult);
+    return res.status(401).json({ message: await AuthController.buildLoginErrorMessage(email, senha) });
   }
 
-  static async me(req: Request, res: Response<any, AuthenticatedResponseLocals>) {
+  static async me(req: Request, res: AuthResponse) {
     const authUser = res.locals.authUser;
-    if (!authUser) {
-      return res.status(401).json({ message: "Nao autenticado." });
-    }
-
-    const user = await User.findByPk(authUser.id_usuario);
-    if (!user) {
-      return res.status(404).json({ message: "Usuario nao encontrado." });
-    }
-
+    if (!authUser) return res.status(401).json({ message: "Nao autenticado." });
+    const user = await Usuarios.findByPk(authUser.id_usuario);
+    if (!user) return res.status(404).json({ message: "Usuario nao encontrado." });
     return res.status(200).json({ user: AuthService.sanitizeUser(user) });
   }
 
   static async googleStart(req: Request, res: Response) {
     try {
-      const authUrl = AuthService.buildGoogleAuthorizationUrl();
-      return res.redirect(authUrl);
+      return res.redirect(AuthService.buildGoogleAuthorizationUrl());
     } catch (error) {
-      return res.status(500).json({
-        message: error instanceof Error ? error.message : "Falha ao iniciar login com Google.",
-      });
+      return res.status(500).json({ message: AuthController.getErrorMessage(error as ErrorLike, "Falha ao iniciar login com Google.") });
     }
   }
 
   static async googleCallback(req: Request, res: Response) {
+    const errorRedirect = AuthController.getGoogleErrorRedirect(req.query), params = AuthController.getGoogleCallbackParams(req.query);
+    if (errorRedirect) return res.redirect(errorRedirect);
+    if (!params) return res.redirect(AuthController.buildLoginErrorRedirect("Parametros OAuth invalidos."));
     try {
-      const { code, state, error } = req.query;
-      if (error) {
-        const message = `Google OAuth retornou erro: ${String(error)}`;
-        return res.redirect(AuthController.buildLoginErrorRedirect(message));
-      }
-
-      if (!code || !state || typeof code !== "string" || typeof state !== "string") {
-        return res.redirect(AuthController.buildLoginErrorRedirect("Parametros OAuth invalidos."));
-      }
-
-      const authResult = await AuthService.authenticateWithGoogle(code, state);
-      const tipo = String(authResult.user.tipo);
-      return res.redirect(AuthController.buildLoginSuccessRedirect(authResult.token, tipo));
+      return res.redirect(await AuthController.buildGoogleSuccessRedirect(params.code, params.state));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha no callback do Google OAuth.";
-      return res.redirect(AuthController.buildLoginErrorRedirect(message));
+      return res.redirect(AuthController.buildLoginErrorRedirect(AuthController.getErrorMessage(error as ErrorLike, "Falha no callback do Google OAuth.")));
     }
   }
 }

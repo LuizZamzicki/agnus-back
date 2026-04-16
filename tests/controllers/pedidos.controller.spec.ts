@@ -61,236 +61,413 @@ const normalizeItemQuantityMock = normalizeItemQuantity as unknown as jest.Mock;
 const resolveProdutoContextMock = resolveProdutoContext as unknown as jest.Mock;
 
 describe("PedidosController", () => {
-  it("cobre todos os fluxos principais", async () => {
-    const resBadUser = mockResponse();
-    await PedidosController.findAll(mockRequest({ query: { id_usuario: "x" } }), resBadUser);
-    expect(resBadUser.status).toHaveBeenCalledWith(400);
+  const payload = { id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 20, valor_frete: 5 };
 
-    const resBadStatus = mockResponse();
-    await PedidosController.findAll(mockRequest({ query: { status: "foo" } }), resBadStatus);
-    expect(resBadStatus.status).toHaveBeenCalledWith(400);
+  it("findAll retorna 400 para id_usuario invalido", async () => {
+    const response = mockResponse();
+    await PedidosController.findAll(mockRequest({ query: { id_usuario: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_usuario invalido." });
+  });
 
-    const resFind = mockResponse();
+  it("findAll retorna 400 para status invalido", async () => {
+    const response = mockResponse();
+    await PedidosController.findAll(mockRequest({ query: { status: "foo" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "status invalido." });
+  });
+
+  it("findAll retorna 200 com lista vazia", async () => {
+    const response = mockResponse();
     pedidosModel.findAll.mockResolvedValueOnce([]);
-    await PedidosController.findAll(mockRequest({ query: { id_usuario: "1", status: "pago" } }), resFind);
-    expect(resFind.status).toHaveBeenCalledWith(200);
+    await PedidosController.findAll(mockRequest({ query: { id_usuario: "1", status: "pago" } }), response);
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith([]);
+  });
 
-    const resGet404 = mockResponse();
+  it("getById retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await PedidosController.getById(mockRequest({ params: { id: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID do pedido invalido." });
+  });
+
+  it("getById retorna 404 quando o pedido nao existe", async () => {
+    const response = mockResponse();
     pedidosModel.findByPk.mockResolvedValueOnce(null);
-    await PedidosController.getById(mockRequest({ params: { id: "1" } }), resGet404);
-    expect(resGet404.status).toHaveBeenCalledWith(404);
+    await PedidosController.getById(mockRequest({ params: { id: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Pedido nao encontrado." });
+  });
 
-    const pedido = buildModelInstance({ id_pedido: 1, id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 10, valor_frete: 2 });
-    const resGet200 = mockResponse();
+  it("getById retorna 200 com o pedido", async () => {
+    const response = mockResponse(), pedido = buildModelInstance({ id_pedido: 1, id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 10, valor_frete: 2 });
     pedidosModel.findByPk.mockResolvedValueOnce(pedido);
-    await PedidosController.getById(mockRequest({ params: { id: "1" } }), resGet200);
-    expect(resGet200.status).toHaveBeenCalledWith(200);
+    await PedidosController.getById(mockRequest({ params: { id: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith(pedido);
+  });
 
-    const resCreateBad = mockResponse();
-    await PedidosController.create(mockRequest({ body: {} }), resCreateBad);
-    expect(resCreateBad.status).toHaveBeenCalledWith(400);
+  it("create retorna 400 sem campos obrigatorios", async () => {
+    const response = mockResponse();
+    await PedidosController.create(mockRequest({ body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_usuario e id_usuario_endereco sao obrigatorios." });
+  });
 
-    const resCreateStatusBad = mockResponse();
-    await PedidosController.create(
-      mockRequest({ body: { id_usuario: 1, id_usuario_endereco: 1, status: "x" } }),
-      resCreateStatusBad,
-    );
-    expect(resCreateStatusBad.status).toHaveBeenCalledWith(400);
+  it("create retorna 400 para id_usuario invalido", async () => {
+    const response = mockResponse();
+    await PedidosController.create(mockRequest({ body: { id_usuario: "x", id_usuario_endereco: 1 } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_usuario invalido." });
+  });
 
-    const payload = { id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 20, valor_frete: 5 };
+  it("create retorna 400 para status invalido", async () => {
+    const response = mockResponse();
+    await PedidosController.create(mockRequest({ body: { id_usuario: 1, id_usuario_endereco: 1, status: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "status invalido." });
+  });
 
-    const resCreateUser404 = mockResponse();
+  it("create retorna 404 quando o usuario nao existe", async () => {
+    const response = mockResponse();
     usuariosModel.findByPk.mockResolvedValueOnce(null);
-    await PedidosController.create(mockRequest({ body: payload }), resCreateUser404);
-    expect(resCreateUser404.status).toHaveBeenCalledWith(404);
+    await PedidosController.create(mockRequest({ body: payload }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Usuario nao encontrado." });
+  });
 
-    const resCreateEnd404 = mockResponse();
+  it("create retorna 404 quando o endereco nao existe", async () => {
+    const response = mockResponse();
     usuariosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario: 1 }));
     enderecosModel.findByPk.mockResolvedValueOnce(null);
-    await PedidosController.create(mockRequest({ body: payload }), resCreateEnd404);
-    expect(resCreateEnd404.status).toHaveBeenCalledWith(404);
+    await PedidosController.create(mockRequest({ body: payload }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Endereco do usuario nao encontrado." });
+  });
 
-    const resCreateMismatch = mockResponse();
+  it("create retorna 400 quando o endereco nao pertence ao usuario", async () => {
+    const response = mockResponse();
     usuariosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario: 1 }));
     enderecosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario_endereco: 1, id_usuario: 2 }));
-    await PedidosController.create(mockRequest({ body: payload }), resCreateMismatch);
-    expect(resCreateMismatch.status).toHaveBeenCalledWith(400);
+    await PedidosController.create(mockRequest({ body: payload }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "O endereco informado nao pertence ao usuario informado." });
+  });
 
-    const resCreate201 = mockResponse();
+  it("create retorna 201 com o pedido criado", async () => {
+    const response = mockResponse(), pedido = buildModelInstance({ id_pedido: 1, ...payload });
     usuariosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario: 1 }));
     enderecosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario_endereco: 1, id_usuario: 1 }));
     pedidosModel.create.mockResolvedValueOnce(pedido);
-    await PedidosController.create(mockRequest({ body: payload }), resCreate201);
-    expect(resCreate201.status).toHaveBeenCalledWith(201);
+    await PedidosController.create(mockRequest({ body: payload }), response);
+    expect(response.status).toHaveBeenCalledWith(201);
+    expect(pedidosModel.create).toHaveBeenCalledWith(payload);
+    expect(response.send).toHaveBeenCalledWith(pedido);
+  });
 
-    const resUp404 = mockResponse();
+  it("update retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await PedidosController.update(mockRequest({ params: { id: "x" }, body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID do pedido invalido." });
+  });
+
+  it("update retorna 404 quando o pedido nao existe", async () => {
+    const response = mockResponse();
     pedidosModel.findByPk.mockResolvedValueOnce(null);
-    await PedidosController.update(mockRequest({ params: { id: "1" }, body: {} }), resUp404);
-    expect(resUp404.status).toHaveBeenCalledWith(404);
+    await PedidosController.update(mockRequest({ params: { id: "1" }, body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Pedido nao encontrado." });
+  });
 
-    const resUpStatusBad = mockResponse();
+  it("update retorna 400 para status invalido", async () => {
+    const response = mockResponse(), pedido = buildModelInstance({ id_pedido: 1, id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 10, valor_frete: 2 });
     pedidosModel.findByPk.mockResolvedValueOnce(pedido);
-    await PedidosController.update(mockRequest({ params: { id: "1" }, body: { status: "foo" } }), resUpStatusBad);
-    expect(resUpStatusBad.status).toHaveBeenCalledWith(400);
+    await PedidosController.update(mockRequest({ params: { id: "1" }, body: { status: "foo" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "status invalido." });
+  });
 
-    const resUpUser404 = mockResponse();
+  it("update retorna 404 quando o usuario informado nao existe", async () => {
+    const response = mockResponse(), pedido = buildModelInstance({ id_pedido: 1, id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 10, valor_frete: 2 });
     pedidosModel.findByPk.mockResolvedValueOnce(pedido);
     usuariosModel.findByPk.mockResolvedValueOnce(null);
-    await PedidosController.update(mockRequest({ params: { id: "1" }, body: { id_usuario: 2 } }), resUpUser404);
-    expect(resUpUser404.status).toHaveBeenCalledWith(404);
+    await PedidosController.update(mockRequest({ params: { id: "1" }, body: { id_usuario: 2 } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Usuario nao encontrado." });
+  });
 
-    const resUpEnd404 = mockResponse();
+  it("update retorna 404 quando o endereco informado nao existe", async () => {
+    const response = mockResponse(), pedido = buildModelInstance({ id_pedido: 1, id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 10, valor_frete: 2 });
     pedidosModel.findByPk.mockResolvedValueOnce(pedido);
     enderecosModel.findByPk.mockResolvedValueOnce(null);
-    await PedidosController.update(mockRequest({ params: { id: "1" }, body: { id_usuario_endereco: 3 } }), resUpEnd404);
-    expect(resUpEnd404.status).toHaveBeenCalledWith(404);
+    await PedidosController.update(mockRequest({ params: { id: "1" }, body: { id_usuario_endereco: 3 } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Endereco do usuario nao encontrado." });
+  });
 
-    const resUpMismatch = mockResponse();
+  it("update retorna 400 quando o endereco nao pertence ao usuario", async () => {
+    const response = mockResponse(), pedido = buildModelInstance({ id_pedido: 1, id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 10, valor_frete: 2 });
     pedidosModel.findByPk.mockResolvedValueOnce(pedido);
     usuariosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario: 2 }));
     enderecosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario_endereco: 1, id_usuario: 1 }));
-    await PedidosController.update(mockRequest({ params: { id: "1" }, body: { id_usuario: 2 } }), resUpMismatch);
-    expect(resUpMismatch.status).toHaveBeenCalledWith(400);
+    await PedidosController.update(mockRequest({ params: { id: "1" }, body: { id_usuario: 2 } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "O endereco informado nao pertence ao usuario informado." });
+  });
 
-    const resUp200 = mockResponse();
-    const pedidoUp = buildModelInstance({ id_pedido: 1, id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 10, valor_frete: 2 });
-    pedidosModel.findByPk.mockResolvedValueOnce(pedidoUp);
+  it("update retorna 400 para id_usuario_endereco invalido", async () => {
+    const response = mockResponse(), pedido = buildModelInstance({ id_pedido: 1, id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 10, valor_frete: 2 });
+    pedidosModel.findByPk.mockResolvedValueOnce(pedido);
+    await PedidosController.update(mockRequest({ params: { id: "1" }, body: { id_usuario_endereco: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_usuario_endereco invalido." });
+  });
+
+  it("update retorna 200 com o pedido atualizado", async () => {
+    const response = mockResponse(), pedido = buildModelInstance({ id_pedido: 1, id_usuario: 1, id_usuario_endereco: 1, status: "pago", valor_total: 10, valor_frete: 2 });
+    pedidosModel.findByPk.mockResolvedValueOnce(pedido);
     usuariosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario: 1 }));
-    enderecosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario_endereco: 1, id_usuario: 1 }));
     enderecosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_usuario_endereco: 1, id_usuario: 1 }));
     await PedidosController.update(
       mockRequest({ params: { id: "1" }, body: { id_usuario: 1, id_usuario_endereco: 1, status: "enviado" } }),
-      resUp200,
+      response,
     );
-    expect(pedidoUp.update).toHaveBeenCalled();
-    expect(resUp200.status).toHaveBeenCalledWith(200);
+    expect(pedido.update).toHaveBeenCalledWith({
+      id_usuario: 1,
+      id_usuario_endereco: 1,
+      status: "enviado",
+      valor_total: 10,
+      valor_frete: 2,
+    });
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith(pedido);
+  });
 
-    const resDel404 = mockResponse();
+  it("remove retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await PedidosController.remove(mockRequest({ params: { id: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID do pedido invalido." });
+  });
+
+  it("remove retorna 404 quando o pedido nao existe", async () => {
+    const response = mockResponse();
     pedidosModel.findByPk.mockResolvedValueOnce(null);
-    await PedidosController.remove(mockRequest({ params: { id: "1" } }), resDel404);
-    expect(resDel404.status).toHaveBeenCalledWith(404);
+    await PedidosController.remove(mockRequest({ params: { id: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Pedido nao encontrado." });
+  });
 
-    const resDel204 = mockResponse();
-    const pedidoDel = buildModelInstance({ id_pedido: 1 });
-    pedidosModel.findByPk.mockResolvedValueOnce(pedidoDel);
-    await PedidosController.remove(mockRequest({ params: { id: "1" } }), resDel204);
-    expect(pedidoDel.destroy).toHaveBeenCalled();
-    expect(resDel204.status).toHaveBeenCalledWith(204);
+  it("remove retorna 204 quando exclui o pedido", async () => {
+    const response = mockResponse(), pedido = buildModelInstance({ id_pedido: 1 });
+    pedidosModel.findByPk.mockResolvedValueOnce(pedido);
+    await PedidosController.remove(mockRequest({ params: { id: "1" } }), response);
+    expect(pedido.destroy).toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(204);
   });
 });
 
 describe("PedidoItensController", () => {
-  it("cobre todos os fluxos principais", async () => {
-    const resGet = mockResponse();
+  const payload = { id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 };
+
+  it("getByIdOrder retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await PedidoItensController.getByIdOrder(mockRequest({ params: { id_order: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID do pedido invalido." });
+  });
+
+  it("getByIdOrder retorna 200 com lista vazia", async () => {
+    const response = mockResponse();
     pedidoItensModel.findAll.mockResolvedValueOnce([]);
-    await PedidoItensController.getByIdOrder(mockRequest({ params: { id_order: "1" } }), resGet);
-    expect(resGet.status).toHaveBeenCalledWith(200);
+    await PedidoItensController.getByIdOrder(mockRequest({ params: { id_order: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith([]);
+  });
 
-    const resCreateBad = mockResponse();
-    await PedidoItensController.create(mockRequest({ body: {} }), resCreateBad);
-    expect(resCreateBad.status).toHaveBeenCalledWith(400);
+  it("create retorna 400 sem campos obrigatorios", async () => {
+    const response = mockResponse();
+    await PedidoItensController.create(mockRequest({ body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_pedido, id_produto_cor, id_produto_grade e quantidade sao obrigatorios." });
+  });
 
-    const payload = { id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 };
+  it("create retorna 400 para id_pedido invalido", async () => {
+    const response = mockResponse();
+    await PedidoItensController.create(mockRequest({ body: { id_pedido: "x", id_produto_cor: 1, id_produto_grade: 1, quantidade: 1 } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_pedido invalido." });
+  });
 
-    const resPedido404 = mockResponse();
+  it("create retorna 404 quando o pedido nao existe", async () => {
+    const response = mockResponse();
     pedidosModel.findByPk.mockResolvedValueOnce(null);
-    await PedidoItensController.create(mockRequest({ body: payload }), resPedido404);
-    expect(resPedido404.status).toHaveBeenCalledWith(404);
+    await PedidoItensController.create(mockRequest({ body: payload }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Pedido nao encontrado." });
+  });
 
-    const resCor404 = mockResponse();
+  it("create retorna 404 quando a cor nao existe", async () => {
+    const response = mockResponse();
     pedidosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_pedido: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(null);
-    await PedidoItensController.create(mockRequest({ body: payload }), resCor404);
-    expect(resCor404.status).toHaveBeenCalledWith(404);
+    await PedidoItensController.create(mockRequest({ body: payload }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Cor do produto nao encontrada." });
+  });
 
-    const resGrade404 = mockResponse();
+  it("create retorna 404 quando a grade nao existe", async () => {
+    const response = mockResponse();
     pedidosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_pedido: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 1, id_produto: 7 }));
     gradesModel.findByPk.mockResolvedValueOnce(null);
-    await PedidoItensController.create(mockRequest({ body: payload }), resGrade404);
-    expect(resGrade404.status).toHaveBeenCalledWith(404);
+    await PedidoItensController.create(mockRequest({ body: payload }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Grade do produto nao encontrada." });
+  });
 
-    const resMismatch = mockResponse();
+  it("create retorna 400 quando cor e grade nao pertencem ao mesmo produto", async () => {
+    const response = mockResponse();
     pedidosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_pedido: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 1, id_produto: 7 }));
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 1, id_produto: 8 }));
-    await PedidoItensController.create(mockRequest({ body: payload }), resMismatch);
-    expect(resMismatch.status).toHaveBeenCalledWith(400);
+    await PedidoItensController.create(mockRequest({ body: payload }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "A cor e a grade informadas nao pertencem ao mesmo produto." });
+  });
 
-    const item = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
-    const resCreate201 = mockResponse();
+  it("create retorna 201 com o item criado", async () => {
+    const response = mockResponse(), item = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
     pedidosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_pedido: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 1, id_produto: 7 }));
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 1, id_produto: 7 }));
     resolveProdutoContextMock.mockResolvedValueOnce({ precoUnitario: 10 });
     enrichItemsWithProductDataMock.mockResolvedValueOnce([item]);
     pedidoItensModel.create.mockResolvedValueOnce(item);
-    await PedidoItensController.create(mockRequest({ body: payload }), resCreate201);
-    expect(resCreate201.status).toHaveBeenCalledWith(201);
+    await PedidoItensController.create(mockRequest({ body: payload }), response);
+    expect(response.status).toHaveBeenCalledWith(201);
+    expect(pedidoItensModel.create).toHaveBeenCalledWith({
+      id_pedido: 1,
+      id_produto_cor: 1,
+      id_produto_grade: 1,
+      quantidade: 1,
+      preco_unitario: 10,
+      subtotal: 10,
+    });
+    expect(response.send).toHaveBeenCalledWith(item);
+  });
 
-    const resUp404 = mockResponse();
+  it("update retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await PedidoItensController.update(mockRequest({ params: { id: "x" }, body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID do item invalido." });
+  });
+
+  it("update retorna 404 quando o item nao existe", async () => {
+    const response = mockResponse();
     pedidoItensModel.findByPk.mockResolvedValueOnce(null);
-    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: {} }), resUp404);
-    expect(resUp404.status).toHaveBeenCalledWith(404);
+    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Item do pedido nao encontrado." });
+  });
 
-    const itemUp = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
-    const resUpPedido404 = mockResponse();
-    pedidoItensModel.findByPk.mockResolvedValueOnce(itemUp);
+  it("update retorna 404 quando o pedido informado nao existe", async () => {
+    const response = mockResponse(), item = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
+    pedidoItensModel.findByPk.mockResolvedValueOnce(item);
     pedidosModel.findByPk.mockResolvedValueOnce(null);
-    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: { id_pedido: 2 } }), resUpPedido404);
-    expect(resUpPedido404.status).toHaveBeenCalledWith(404);
+    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: { id_pedido: 2 } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Pedido nao encontrado." });
+  });
 
-    const itemUp2 = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
-    const resUpCor404 = mockResponse();
-    pedidoItensModel.findByPk.mockResolvedValueOnce(itemUp2);
+  it("update retorna 404 quando a cor informada nao existe", async () => {
+    const response = mockResponse(), item = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
+    pedidoItensModel.findByPk.mockResolvedValueOnce(item);
     coresModel.findByPk.mockResolvedValueOnce(null);
-    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: { id_produto_cor: 2 } }), resUpCor404);
-    expect(resUpCor404.status).toHaveBeenCalledWith(404);
+    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: { id_produto_cor: 2 } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Cor do produto nao encontrada." });
+  });
 
-    const itemUp3 = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
-    const resUpGrade404 = mockResponse();
-    pedidoItensModel.findByPk.mockResolvedValueOnce(itemUp3);
+  it("update retorna 404 quando a grade informada nao existe", async () => {
+    const response = mockResponse(), item = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
+    pedidoItensModel.findByPk.mockResolvedValueOnce(item);
+    coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 1, id_produto: 7 }));
     gradesModel.findByPk.mockResolvedValueOnce(null);
-    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: { id_produto_grade: 3 } }), resUpGrade404);
-    expect(resUpGrade404.status).toHaveBeenCalledWith(404);
+    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: { id_produto_grade: 3 } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Grade do produto nao encontrada." });
+  });
 
-    const itemUp4 = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
-    const resUpMismatch = mockResponse();
-    pedidoItensModel.findByPk.mockResolvedValueOnce(itemUp4);
+  it("update retorna 400 quando cor e grade nao pertencem ao mesmo produto", async () => {
+    const response = mockResponse(), item = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
+    pedidoItensModel.findByPk.mockResolvedValueOnce(item);
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 2, id_produto: 7 }));
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 3, id_produto: 8 }));
-    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: { id_produto_cor: 2, id_produto_grade: 3 } }), resUpMismatch);
-    expect(resUpMismatch.status).toHaveBeenCalledWith(400);
+    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: { id_produto_cor: 2, id_produto_grade: 3 } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "A cor e a grade informadas nao pertencem ao mesmo produto." });
+  });
 
-    const itemUp5 = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
-    const resUp200 = mockResponse();
-    pedidoItensModel.findByPk.mockResolvedValueOnce(itemUp5);
+  it("update retorna 400 para id_produto_cor invalido", async () => {
+    const response = mockResponse(), item = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
+    pedidoItensModel.findByPk.mockResolvedValueOnce(item);
+    await PedidoItensController.update(mockRequest({ params: { id: "1" }, body: { id_produto_cor: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_produto_cor invalido." });
+  });
+
+  it("update retorna 200 com o item atualizado", async () => {
+    const response = mockResponse(), item = buildModelInstance({ id_pedido_item: 1, id_pedido: 1, id_produto_cor: 1, id_produto_grade: 1, quantidade: 1, preco_unitario: 10 });
+    pedidoItensModel.findByPk.mockResolvedValueOnce(item);
     pedidosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_pedido: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 2, id_produto: 7 }));
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 3, id_produto: 7 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 2, id_produto: 7 }));
     gradesModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_grade: 3, id_produto: 7 }));
     resolveProdutoContextMock.mockResolvedValueOnce({ precoUnitario: 10 });
-    enrichItemsWithProductDataMock.mockResolvedValueOnce([itemUp5]);
+    enrichItemsWithProductDataMock.mockResolvedValueOnce([item]);
     await PedidoItensController.update(
       mockRequest({ params: { id: "1" }, body: { id_pedido: 1, id_produto_cor: 2, id_produto_grade: 3, quantidade: 2 } }),
-      resUp200,
+      response,
     );
-    expect(itemUp5.update).toHaveBeenCalled();
-    expect(resUp200.status).toHaveBeenCalledWith(200);
+    expect(item.update).toHaveBeenCalledWith({
+      id_pedido: 1,
+      id_produto_cor: 2,
+      id_produto_grade: 3,
+      quantidade: 2,
+      preco_unitario: 10,
+      subtotal: 20,
+    });
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith(item);
     expect(normalizeItemQuantityMock).toHaveBeenCalled();
     expect(calculateSubtotalMock).toHaveBeenCalled();
+  });
 
-    const resDel404 = mockResponse();
+  it("remove retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await PedidoItensController.remove(mockRequest({ params: { id: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID do item invalido." });
+  });
+
+  it("remove retorna 404 quando o item nao existe", async () => {
+    const response = mockResponse();
     pedidoItensModel.findByPk.mockResolvedValueOnce(null);
-    await PedidoItensController.remove(mockRequest({ params: { id: "1" } }), resDel404);
-    expect(resDel404.status).toHaveBeenCalledWith(404);
+    await PedidoItensController.remove(mockRequest({ params: { id: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Item do pedido nao encontrado." });
+  });
 
-    const resDel204 = mockResponse();
-    const itemDel = buildModelInstance({ id_pedido_item: 1 });
-    pedidoItensModel.findByPk.mockResolvedValueOnce(itemDel);
-    await PedidoItensController.remove(mockRequest({ params: { id: "1" } }), resDel204);
-    expect(itemDel.destroy).toHaveBeenCalled();
-    expect(resDel204.status).toHaveBeenCalledWith(204);
+  it("remove retorna 204 quando exclui o item", async () => {
+    const response = mockResponse(), item = buildModelInstance({ id_pedido_item: 1 });
+    pedidoItensModel.findByPk.mockResolvedValueOnce(item);
+    await PedidoItensController.remove(mockRequest({ params: { id: "1" } }), response);
+    expect(item.destroy).toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(204);
   });
 });

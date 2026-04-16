@@ -29,238 +29,438 @@ const fotosModel = ProdutoFotos as unknown as { findAll: jest.Mock; findByPk: je
 const gradesModel = ProdutoGrades as unknown as { findAll: jest.Mock; findByPk: jest.Mock; create: jest.Mock };
 const produtosModel = Produtos as unknown as { findByPk: jest.Mock };
 
-describe("Produto children controllers", () => {
-  it("ProdutoCores CRUD principal", async () => {
-    const resGet404 = mockResponse();
+describe("ProdutoCoresController", () => {
+  it("getByIdProduto retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await ProdutoCoresController.getByIdProduto(mockRequest({ params: { id_produto: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID do produto invalido." });
+  });
+
+  it("getByIdProduto retorna 404 quando nao encontra cores", async () => {
+    const response = mockResponse();
     coresModel.findAll.mockResolvedValueOnce(null);
-    await ProdutoCoresController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), resGet404);
-    expect(resGet404.status).toHaveBeenCalledWith(404);
+    await ProdutoCoresController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Cor do produto nao encontrada." });
+  });
 
-    const resGet = mockResponse();
+  it("getByIdProduto retorna 200 com lista vazia", async () => {
+    const response = mockResponse();
     coresModel.findAll.mockResolvedValueOnce([]);
-    await ProdutoCoresController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), resGet);
-    expect(resGet.status).toHaveBeenCalledWith(200);
+    await ProdutoCoresController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith([]);
+  });
 
-    const resBad = mockResponse();
-    await ProdutoCoresController.create(mockRequest({ body: {} }), resBad);
-    expect(resBad.status).toHaveBeenCalledWith(400);
+  it("create retorna 400 sem campos obrigatorios", async () => {
+    const response = mockResponse();
+    await ProdutoCoresController.create(mockRequest({ body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_produto, nome e codigo_rgb sao obrigatorios." });
+  });
 
-    const res404 = mockResponse();
+  it("create retorna 400 para id_produto invalido", async () => {
+    const response = mockResponse();
+    await ProdutoCoresController.create(mockRequest({ body: { id_produto: "x", nome: "Azul", codigo_rgb: "#00F" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_produto invalido." });
+  });
+
+  it("create retorna 400 para nome invalido", async () => {
+    const response = mockResponse();
+    await ProdutoCoresController.create(mockRequest({ body: { id_produto: 1, nome: "   ", codigo_rgb: "#00F" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "nome invalido." });
+  });
+
+  it("create retorna 400 para codigo_rgb invalido", async () => {
+    const response = mockResponse();
+    await ProdutoCoresController.create(mockRequest({ body: { id_produto: 1, nome: "Azul", codigo_rgb: "zzz" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "codigo_rgb invalido. Use formato RGB valido." });
+  });
+
+  it("create retorna 404 quando o produto nao existe", async () => {
+    const response = mockResponse();
     produtosModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoCoresController.create(
-      mockRequest({ body: { id_produto: 1, nome: "Azul", codigo_rgb: "#00F" } }),
-      res404,
-    );
-    expect(res404.status).toHaveBeenCalledWith(404);
+    await ProdutoCoresController.create(mockRequest({ body: { id_produto: 1, nome: "Azul", codigo_rgb: "#00F" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Produto nao encontrado." });
+  });
 
-    const cor = buildModelInstance({ id_produto_cor: 1, id_produto: 1, nome: "Azul", codigo_rgb: "#00F" });
-    const res201 = mockResponse();
+  it("create retorna 201 com a cor criada", async () => {
+    const response = mockResponse(), cor = buildModelInstance({ id_produto_cor: 1, id_produto: 1, nome: "Azul", codigo_rgb: "#00F" });
     produtosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto: 1 }));
     coresModel.create.mockResolvedValueOnce(cor);
-    await ProdutoCoresController.create(
-      mockRequest({ body: { id_produto: 1, nome: "Azul", codigo_rgb: "#00F" } }),
-      res201,
-    );
-    expect(res201.status).toHaveBeenCalledWith(201);
-
-    const resUp404 = mockResponse();
-    coresModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoCoresController.update(mockRequest({ params: { id: "1" }, body: {} }), resUp404);
-    expect(resUp404.status).toHaveBeenCalledWith(404);
-
-    const corUp = buildModelInstance({ id_produto_cor: 1, id_produto: 1, nome: "Azul", codigo_rgb: "#00F", acrescimo: 0 });
-    const resUpProd404 = mockResponse();
-    coresModel.findByPk.mockResolvedValueOnce(corUp);
-    produtosModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoCoresController.update(
-      mockRequest({ params: { id: "1" }, body: { id_produto: 2 } }),
-      resUpProd404,
-    );
-    expect(resUpProd404.status).toHaveBeenCalledWith(404);
-
-    const resUp200 = mockResponse();
-    coresModel.findByPk.mockResolvedValueOnce(corUp);
-    produtosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto: 1 }));
-    await ProdutoCoresController.update(
-      mockRequest({ params: { id: "1" }, body: { id_produto: 1, nome: "Branco" } }),
-      resUp200,
-    );
-    expect(corUp.update).toHaveBeenCalled();
-    expect(resUp200.status).toHaveBeenCalledWith(200);
-
-    const resDel404 = mockResponse();
-    coresModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoCoresController.remove(mockRequest({ params: { id: "1" } }), resDel404);
-    expect(resDel404.status).toHaveBeenCalledWith(404);
-
-    const resDel204 = mockResponse();
-    const corDel = buildModelInstance({ id_produto_cor: 1 });
-    coresModel.findByPk.mockResolvedValueOnce(corDel);
-    await ProdutoCoresController.remove(mockRequest({ params: { id: "1" } }), resDel204);
-    expect(corDel.destroy).toHaveBeenCalled();
-    expect(resDel204.status).toHaveBeenCalledWith(204);
+    await ProdutoCoresController.create(mockRequest({ body: { id_produto: 1, nome: "Azul", codigo_rgb: "#00F" } }), response);
+    expect(response.status).toHaveBeenCalledWith(201);
+    expect(coresModel.create).toHaveBeenCalledWith({ id_produto: 1, nome: "Azul", codigo_rgb: "rgb(0,0,255)", acrescimo: 0 });
+    expect(response.send).toHaveBeenCalledWith(cor);
   });
 
-  it("ProdutoGrades CRUD principal", async () => {
-    const resGet404 = mockResponse();
-    gradesModel.findAll.mockResolvedValueOnce(null);
-    await ProdutoGradesController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), resGet404);
-    expect(resGet404.status).toHaveBeenCalledWith(404);
+  it("update retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await ProdutoCoresController.update(mockRequest({ params: { id: "x" }, body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID da cor invalido." });
+  });
 
-    const resGet = mockResponse();
-    gradesModel.findAll.mockResolvedValueOnce([]);
-    await ProdutoGradesController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), resGet);
-    expect(resGet.status).toHaveBeenCalledWith(200);
+  it("update retorna 404 quando a cor nao existe", async () => {
+    const response = mockResponse();
+    coresModel.findByPk.mockResolvedValueOnce(null);
+    await ProdutoCoresController.update(mockRequest({ params: { id: "1" }, body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Cor do produto nao encontrada." });
+  });
 
-    const resBad = mockResponse();
-    await ProdutoGradesController.create(mockRequest({ body: {} }), resBad);
-    expect(resBad.status).toHaveBeenCalledWith(400);
-
-    const res404 = mockResponse();
+  it("update retorna 404 quando o produto informado nao existe", async () => {
+    const response = mockResponse(), cor = buildModelInstance({ id_produto_cor: 1, id_produto: 1, nome: "Azul", codigo_rgb: "#00F", acrescimo: 0 });
+    coresModel.findByPk.mockResolvedValueOnce(cor);
     produtosModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoGradesController.create(mockRequest({ body: { id_produto: 1, nome: "M" } }), res404);
-    expect(res404.status).toHaveBeenCalledWith(404);
+    await ProdutoCoresController.update(mockRequest({ params: { id: "1" }, body: { id_produto: 2 } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Produto nao encontrado." });
+  });
 
-    const grade = buildModelInstance({ id_produto_grade: 1, id_produto: 1, nome: "M" });
-    const res201 = mockResponse();
+  it("update retorna 400 para nome invalido", async () => {
+    const response = mockResponse(), cor = buildModelInstance({ id_produto_cor: 1, id_produto: 1, nome: "Azul", codigo_rgb: "#00F", acrescimo: 0 });
+    coresModel.findByPk.mockResolvedValueOnce(cor);
+    await ProdutoCoresController.update(mockRequest({ params: { id: "1" }, body: { nome: "   " } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "nome invalido." });
+  });
+
+  it("update retorna 400 para codigo_rgb invalido", async () => {
+    const response = mockResponse(), cor = buildModelInstance({ id_produto_cor: 1, id_produto: 1, nome: "Azul", codigo_rgb: "#00F", acrescimo: 0 });
+    coresModel.findByPk.mockResolvedValueOnce(cor);
+    await ProdutoCoresController.update(mockRequest({ params: { id: "1" }, body: { codigo_rgb: "zzz" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "codigo_rgb invalido. Use formato RGB valido." });
+  });
+
+  it("update retorna 200 com a cor atualizada", async () => {
+    const response = mockResponse(), cor = buildModelInstance({ id_produto_cor: 1, id_produto: 1, nome: "Azul", codigo_rgb: "#00F", acrescimo: 0 });
+    coresModel.findByPk.mockResolvedValueOnce(cor);
+    produtosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto: 1 }));
+    await ProdutoCoresController.update(mockRequest({ params: { id: "1" }, body: { id_produto: 1, nome: "Branco" } }), response);
+    expect(cor.update).toHaveBeenCalledWith({ id_produto: 1, nome: "Branco", codigo_rgb: "#00F", acrescimo: 0 });
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith(cor);
+  });
+
+  it("remove retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await ProdutoCoresController.remove(mockRequest({ params: { id: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID da cor invalido." });
+  });
+
+  it("remove retorna 404 quando a cor nao existe", async () => {
+    const response = mockResponse();
+    coresModel.findByPk.mockResolvedValueOnce(null);
+    await ProdutoCoresController.remove(mockRequest({ params: { id: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Cor do produto nao encontrada." });
+  });
+
+  it("remove retorna 204 quando exclui a cor", async () => {
+    const response = mockResponse(), cor = buildModelInstance({ id_produto_cor: 1 });
+    coresModel.findByPk.mockResolvedValueOnce(cor);
+    await ProdutoCoresController.remove(mockRequest({ params: { id: "1" } }), response);
+    expect(cor.destroy).toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(204);
+  });
+});
+
+describe("ProdutoGradesController", () => {
+  it("getByIdProduto retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await ProdutoGradesController.getByIdProduto(mockRequest({ params: { id_produto: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID do produto invalido." });
+  });
+
+  it("getByIdProduto retorna 404 quando nao encontra grades", async () => {
+    const response = mockResponse();
+    gradesModel.findAll.mockResolvedValueOnce(null);
+    await ProdutoGradesController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Grade do produto nao encontrada." });
+  });
+
+  it("getByIdProduto retorna 200 com lista vazia", async () => {
+    const response = mockResponse();
+    gradesModel.findAll.mockResolvedValueOnce([]);
+    await ProdutoGradesController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith([]);
+  });
+
+  it("create retorna 400 sem campos obrigatorios", async () => {
+    const response = mockResponse();
+    await ProdutoGradesController.create(mockRequest({ body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_produto e nome sao obrigatorios." });
+  });
+
+  it("create retorna 400 para id_produto invalido", async () => {
+    const response = mockResponse();
+    await ProdutoGradesController.create(mockRequest({ body: { id_produto: "x", nome: "M" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_produto invalido." });
+  });
+
+  it("create retorna 400 para nome invalido", async () => {
+    const response = mockResponse();
+    await ProdutoGradesController.create(mockRequest({ body: { id_produto: 1, nome: "   " } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "nome invalido." });
+  });
+
+  it("create retorna 404 quando o produto nao existe", async () => {
+    const response = mockResponse();
+    produtosModel.findByPk.mockResolvedValueOnce(null);
+    await ProdutoGradesController.create(mockRequest({ body: { id_produto: 1, nome: "M" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Produto nao encontrado." });
+  });
+
+  it("create retorna 201 com a grade criada", async () => {
+    const response = mockResponse(), grade = buildModelInstance({ id_produto_grade: 1, id_produto: 1, nome: "M" });
     produtosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto: 1 }));
     gradesModel.create.mockResolvedValueOnce(grade);
-    await ProdutoGradesController.create(mockRequest({ body: { id_produto: 1, nome: "M" } }), res201);
-    expect(res201.status).toHaveBeenCalledWith(201);
-
-    const resUp404 = mockResponse();
-    gradesModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoGradesController.update(mockRequest({ params: { id: "1" }, body: {} }), resUp404);
-    expect(resUp404.status).toHaveBeenCalledWith(404);
-
-    const gradeUp = buildModelInstance({ id_produto_grade: 1, id_produto: 1, nome: "M", acrescimo: 0 });
-    const resUpProd404 = mockResponse();
-    gradesModel.findByPk.mockResolvedValueOnce(gradeUp);
-    produtosModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoGradesController.update(mockRequest({ params: { id: "1" }, body: { id_produto: 3 } }), resUpProd404);
-    expect(resUpProd404.status).toHaveBeenCalledWith(404);
-
-    const resUp200 = mockResponse();
-    gradesModel.findByPk.mockResolvedValueOnce(gradeUp);
-    produtosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto: 1 }));
-    await ProdutoGradesController.update(mockRequest({ params: { id: "1" }, body: { nome: "G", id_produto: 1 } }), resUp200);
-    expect(gradeUp.update).toHaveBeenCalled();
-    expect(resUp200.status).toHaveBeenCalledWith(200);
-
-    const resDel404 = mockResponse();
-    gradesModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoGradesController.remove(mockRequest({ params: { id: "1" } }), resDel404);
-    expect(resDel404.status).toHaveBeenCalledWith(404);
-
-    const gradeDel = buildModelInstance({ id_produto_grade: 1 });
-    const resDel204 = mockResponse();
-    gradesModel.findByPk.mockResolvedValueOnce(gradeDel);
-    await ProdutoGradesController.remove(mockRequest({ params: { id: "1" } }), resDel204);
-    expect(gradeDel.destroy).toHaveBeenCalled();
-    expect(resDel204.status).toHaveBeenCalledWith(204);
+    await ProdutoGradesController.create(mockRequest({ body: { id_produto: 1, nome: "M" } }), response);
+    expect(response.status).toHaveBeenCalledWith(201);
+    expect(gradesModel.create).toHaveBeenCalledWith({ id_produto: 1, nome: "M", acrescimo: 0 });
+    expect(response.send).toHaveBeenCalledWith(grade);
   });
 
-  it("ProdutoFotos CRUD principal", async () => {
-    const resGet404 = mockResponse();
-    fotosModel.findAll.mockResolvedValueOnce(null);
-    await ProdutoFotosController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), resGet404);
-    expect(resGet404.status).toHaveBeenCalledWith(404);
+  it("update retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await ProdutoGradesController.update(mockRequest({ params: { id: "x" }, body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID da grade invalido." });
+  });
 
-    const resGet = mockResponse();
-    fotosModel.findAll.mockResolvedValueOnce([]);
-    await ProdutoFotosController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), resGet);
-    expect(resGet.status).toHaveBeenCalledWith(200);
+  it("update retorna 404 quando a grade nao existe", async () => {
+    const response = mockResponse();
+    gradesModel.findByPk.mockResolvedValueOnce(null);
+    await ProdutoGradesController.update(mockRequest({ params: { id: "1" }, body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Grade do produto nao encontrada." });
+  });
 
-    const resBad = mockResponse();
-    await ProdutoFotosController.create(mockRequest({ body: {} }), resBad);
-    expect(resBad.status).toHaveBeenCalledWith(400);
-
-    const resProd404 = mockResponse();
+  it("update retorna 404 quando o produto informado nao existe", async () => {
+    const response = mockResponse(), grade = buildModelInstance({ id_produto_grade: 1, id_produto: 1, nome: "M", acrescimo: 0 });
+    gradesModel.findByPk.mockResolvedValueOnce(grade);
     produtosModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoFotosController.create(
-      mockRequest({ body: { id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" } }),
-      resProd404,
-    );
-    expect(resProd404.status).toHaveBeenCalledWith(404);
+    await ProdutoGradesController.update(mockRequest({ params: { id: "1" }, body: { id_produto: 3 } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Produto nao encontrado." });
+  });
 
-    const resCor404 = mockResponse();
+  it("update retorna 400 para nome invalido", async () => {
+    const response = mockResponse(), grade = buildModelInstance({ id_produto_grade: 1, id_produto: 1, nome: "M", acrescimo: 0 });
+    gradesModel.findByPk.mockResolvedValueOnce(grade);
+    await ProdutoGradesController.update(mockRequest({ params: { id: "1" }, body: { nome: "   " } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "nome invalido." });
+  });
+
+  it("update retorna 200 com a grade atualizada", async () => {
+    const response = mockResponse(), grade = buildModelInstance({ id_produto_grade: 1, id_produto: 1, nome: "M", acrescimo: 0 });
+    gradesModel.findByPk.mockResolvedValueOnce(grade);
+    produtosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto: 1 }));
+    await ProdutoGradesController.update(mockRequest({ params: { id: "1" }, body: { nome: "G", id_produto: 1 } }), response);
+    expect(grade.update).toHaveBeenCalledWith({ id_produto: 1, nome: "G", acrescimo: 0 });
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith(grade);
+  });
+
+  it("remove retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await ProdutoGradesController.remove(mockRequest({ params: { id: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID da grade invalido." });
+  });
+
+  it("remove retorna 404 quando a grade nao existe", async () => {
+    const response = mockResponse();
+    gradesModel.findByPk.mockResolvedValueOnce(null);
+    await ProdutoGradesController.remove(mockRequest({ params: { id: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Grade do produto nao encontrada." });
+  });
+
+  it("remove retorna 204 quando exclui a grade", async () => {
+    const response = mockResponse(), grade = buildModelInstance({ id_produto_grade: 1 });
+    gradesModel.findByPk.mockResolvedValueOnce(grade);
+    await ProdutoGradesController.remove(mockRequest({ params: { id: "1" } }), response);
+    expect(grade.destroy).toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(204);
+  });
+});
+
+describe("ProdutoFotosController", () => {
+  it("getByIdProduto retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await ProdutoFotosController.getByIdProduto(mockRequest({ params: { id_produto: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID do produto invalido." });
+  });
+
+  it("getByIdProduto retorna 404 quando nao encontra fotos", async () => {
+    const response = mockResponse();
+    fotosModel.findAll.mockResolvedValueOnce(null);
+    await ProdutoFotosController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Foto do produto nao encontrada." });
+  });
+
+  it("getByIdProduto retorna 200 com lista vazia", async () => {
+    const response = mockResponse();
+    fotosModel.findAll.mockResolvedValueOnce([]);
+    await ProdutoFotosController.getByIdProduto(mockRequest({ params: { id_produto: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith([]);
+  });
+
+  it("create retorna 400 sem campos obrigatorios", async () => {
+    const response = mockResponse();
+    await ProdutoFotosController.create(mockRequest({ body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_produto, id_produto_cor e caminho_url (ou bits) sao obrigatorios." });
+  });
+
+  it("create retorna 400 para id_produto invalido", async () => {
+    const response = mockResponse();
+    await ProdutoFotosController.create(mockRequest({ body: { id_produto: "x", id_produto_cor: 10, caminho_url: "a.jpg" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "id_produto invalido." });
+  });
+
+  it("create retorna 404 quando o produto nao existe", async () => {
+    const response = mockResponse();
+    produtosModel.findByPk.mockResolvedValueOnce(null);
+    await ProdutoFotosController.create(mockRequest({ body: { id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Produto nao encontrado." });
+  });
+
+  it("create retorna 404 quando a cor nao existe", async () => {
+    const response = mockResponse();
     produtosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoFotosController.create(
-      mockRequest({ body: { id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" } }),
-      resCor404,
-    );
-    expect(resCor404.status).toHaveBeenCalledWith(404);
+    await ProdutoFotosController.create(mockRequest({ body: { id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Cor do produto nao encontrada." });
+  });
 
-    const resMismatch = mockResponse();
+  it("create retorna 400 quando a cor nao pertence ao produto", async () => {
+    const response = mockResponse();
     produtosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 10, id_produto: 2 }));
-    await ProdutoFotosController.create(
-      mockRequest({ body: { id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" } }),
-      resMismatch,
-    );
-    expect(resMismatch.status).toHaveBeenCalledWith(400);
+    await ProdutoFotosController.create(mockRequest({ body: { id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "A cor informada nao pertence ao produto informado." });
+  });
 
-    const foto = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
-    const res201 = mockResponse();
+  it("create retorna 201 com a foto criada", async () => {
+    const response = mockResponse(), foto = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
     produtosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 10, id_produto: 1 }));
     fotosModel.create.mockResolvedValueOnce(foto);
-    await ProdutoFotosController.create(
-      mockRequest({ body: { id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" } }),
-      res201,
-    );
-    expect(res201.status).toHaveBeenCalledWith(201);
+    await ProdutoFotosController.create(mockRequest({ body: { id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" } }), response);
+    expect(response.status).toHaveBeenCalledWith(201);
+    expect(fotosModel.create).toHaveBeenCalledWith({ id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
+    expect(response.send).toHaveBeenCalledWith(foto);
+  });
 
-    const resUp404 = mockResponse();
+  it("update retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await ProdutoFotosController.update(mockRequest({ params: { id: "x" }, body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID da foto invalido." });
+  });
+
+  it("update retorna 404 quando a foto nao existe", async () => {
+    const response = mockResponse();
     fotosModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoFotosController.update(mockRequest({ params: { id: "1" }, body: {} }), resUp404);
-    expect(resUp404.status).toHaveBeenCalledWith(404);
+    await ProdutoFotosController.update(mockRequest({ params: { id: "1" }, body: {} }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Foto do produto nao encontrada." });
+  });
 
-    const fotoUp = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
-    const resUpProd404 = mockResponse();
-    fotosModel.findByPk.mockResolvedValueOnce(fotoUp);
+  it("update retorna 404 quando o produto informado nao existe", async () => {
+    const response = mockResponse(), foto = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
+    fotosModel.findByPk.mockResolvedValueOnce(foto);
     produtosModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoFotosController.update(mockRequest({ params: { id: "1" }, body: { id_produto: 2 } }), resUpProd404);
-    expect(resUpProd404.status).toHaveBeenCalledWith(404);
+    await ProdutoFotosController.update(mockRequest({ params: { id: "1" }, body: { id_produto: 2 } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Produto nao encontrado." });
+  });
 
-    const fotoUp2 = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
-    const resUpCor404 = mockResponse();
-    fotosModel.findByPk.mockResolvedValueOnce(fotoUp2);
+  it("update retorna 404 quando a cor informada nao existe", async () => {
+    const response = mockResponse(), foto = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
+    fotosModel.findByPk.mockResolvedValueOnce(foto);
     coresModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoFotosController.update(mockRequest({ params: { id: "1" }, body: { id_produto_cor: 99 } }), resUpCor404);
-    expect(resUpCor404.status).toHaveBeenCalledWith(404);
+    await ProdutoFotosController.update(mockRequest({ params: { id: "1" }, body: { id_produto_cor: 99 } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Cor do produto nao encontrada." });
+  });
 
-    const fotoUp3 = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
-    const resUpMismatch = mockResponse();
-    fotosModel.findByPk.mockResolvedValueOnce(fotoUp3);
+  it("update retorna 400 quando a cor nao pertence ao produto", async () => {
+    const response = mockResponse(), foto = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
+    fotosModel.findByPk.mockResolvedValueOnce(foto);
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 99, id_produto: 2 }));
-    await ProdutoFotosController.update(mockRequest({ params: { id: "1" }, body: { id_produto_cor: 99 } }), resUpMismatch);
-    expect(resUpMismatch.status).toHaveBeenCalledWith(400);
+    await ProdutoFotosController.update(mockRequest({ params: { id: "1" }, body: { id_produto_cor: 99 } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "A cor informada nao pertence ao produto informado." });
+  });
 
-    const fotoUp4 = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
-    const resUp200 = mockResponse();
-    fotosModel.findByPk.mockResolvedValueOnce(fotoUp4);
+  it("update retorna 400 para caminho_url invalido", async () => {
+    const response = mockResponse(), foto = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
+    fotosModel.findByPk.mockResolvedValueOnce(foto);
+    await ProdutoFotosController.update(mockRequest({ params: { id: "1" }, body: { caminho_url: "" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "caminho_url invalido." });
+  });
+
+  it("update retorna 200 com a foto atualizada", async () => {
+    const response = mockResponse(), foto = buildModelInstance({ id_produto_foto: 1, id_produto: 1, id_produto_cor: 10, caminho_url: "a.jpg" });
+    fotosModel.findByPk.mockResolvedValueOnce(foto);
     produtosModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto: 1 }));
-    coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 10, id_produto: 1 }));
     coresModel.findByPk.mockResolvedValueOnce(buildModelInstance({ id_produto_cor: 10, id_produto: 1 }));
     await ProdutoFotosController.update(
       mockRequest({ params: { id: "1" }, body: { id_produto: 1, id_produto_cor: 10, caminho_url: "b.jpg" } }),
-      resUp200,
+      response,
     );
-    expect(fotoUp4.update).toHaveBeenCalled();
-    expect(resUp200.status).toHaveBeenCalledWith(200);
+    expect(foto.update).toHaveBeenCalledWith({ id_produto: 1, id_produto_cor: 10, caminho_url: "b.jpg" });
+    expect(response.status).toHaveBeenCalledWith(200);
+    expect(response.send).toHaveBeenCalledWith(foto);
+  });
 
-    const resDel404 = mockResponse();
+  it("remove retorna 400 para id invalido", async () => {
+    const response = mockResponse();
+    await ProdutoFotosController.remove(mockRequest({ params: { id: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "ID da foto invalido." });
+  });
+
+  it("remove retorna 404 quando a foto nao existe", async () => {
+    const response = mockResponse();
     fotosModel.findByPk.mockResolvedValueOnce(null);
-    await ProdutoFotosController.remove(mockRequest({ params: { id: "1" } }), resDel404);
-    expect(resDel404.status).toHaveBeenCalledWith(404);
+    await ProdutoFotosController.remove(mockRequest({ params: { id: "1" } }), response);
+    expect(response.status).toHaveBeenCalledWith(404);
+    expect(response.json).toHaveBeenCalledWith({ message: "Foto do produto nao encontrada." });
+  });
 
-    const fotoDel = buildModelInstance({ id_produto_foto: 1 });
-    const resDel204 = mockResponse();
-    fotosModel.findByPk.mockResolvedValueOnce(fotoDel);
-    await ProdutoFotosController.remove(mockRequest({ params: { id: "1" } }), resDel204);
-    expect(fotoDel.destroy).toHaveBeenCalled();
-    expect(resDel204.status).toHaveBeenCalledWith(204);
+  it("remove retorna 204 quando exclui a foto", async () => {
+    const response = mockResponse(), foto = buildModelInstance({ id_produto_foto: 1 });
+    fotosModel.findByPk.mockResolvedValueOnce(foto);
+    await ProdutoFotosController.remove(mockRequest({ params: { id: "1" } }), response);
+    expect(foto.destroy).toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(204);
   });
 });

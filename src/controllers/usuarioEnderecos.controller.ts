@@ -1,118 +1,103 @@
 import { Request, Response } from "express";
 import UsuarioEnderecos from "../models/UsuarioEnderecos";
 import Usuarios from "../models/Usuarios";
+import type {
+  UsuarioEnderecoBody,
+  UsuarioEnderecoRouteParams,
+  UsuarioEnderecoUpdateData,
+} from "../types/usuario-endereco.types";
+
+type UsuarioEnderecoRequest = Request<UsuarioEnderecoRouteParams, object, UsuarioEnderecoBody>;
+
+class UsuarioEnderecoPayload {
+  constructor(private readonly body: UsuarioEnderecoBody) {}
+
+  private parseId(value: number | string | null | undefined) {
+    const parsedId = Number(value);
+    return Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
+  }
+
+  private parseText(value: string | null | undefined) { return typeof value === "string" ? value.trim() || null : null; }
+  get userId() { return this.parseId(this.body.id_usuario); }
+  get cep() { return this.parseText(this.body.cep); }
+  get logradouro() { return this.parseText(this.body.logradouro); }
+  get numero() { return this.parseText(this.body.numero); }
+  get complemento() { return this.parseText(this.body.complemento); }
+  get bairro() { return this.parseText(this.body.bairro); }
+  get cidade() { return this.parseText(this.body.cidade); }
+  get estado() { return this.parseText(this.body.estado); }
+  get pais() { return this.parseText(this.body.pais) ?? "Brasil"; }
+  get principal() { return Boolean(this.body.principal); }
+  get ativo() { return this.body.ativo === undefined ? true : Boolean(this.body.ativo); }
+  hasUserField() { return this.body.id_usuario !== undefined; }
+  hasCepField() { return this.body.cep !== undefined; }
+  hasLogradouroField() { return this.body.logradouro !== undefined; }
+  hasPrincipalField() { return this.body.principal !== undefined; }
+  hasAtivoField() { return this.body.ativo !== undefined; }
+}
 
 class UsuarioEnderecosController {
+  static parsePositiveId(value: string | undefined) {
+    const parsedId = Number(value);
+    return Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
+  }
 
+  private static getCreateErrorMessage(payload: UsuarioEnderecoPayload) {
+    if (!payload.hasUserField() || !payload.hasCepField() || !payload.hasLogradouroField()) return "id_usuario, cep e logradouro sao obrigatorios.";
+    if (!payload.userId) return "id_usuario invalido.";
+    if (!payload.cep) return "cep invalido.";
+    if (!payload.logradouro) return "logradouro invalido.";
+    return null;
+  }
 
-  static async getByIdUser(req: Request, res: Response) {
-    const { id_user } = req.params;
-    const enderecos = await UsuarioEnderecos.findAll({ where: { id_usuario: Number(id_user) } });
-  
-    if (!enderecos) {
-      return res.status(404).json({ message: "Endereços não encontrados" });
-    }
+  private static getUpdateErrorMessage(payload: UsuarioEnderecoPayload) {
+    if (payload.hasUserField() && !payload.userId) return "id_usuario invalido.";
+    if (payload.hasCepField() && !payload.cep) return "cep invalido.";
+    if (payload.hasLogradouroField() && !payload.logradouro) return "logradouro invalido.";
+    return null;
+  }
 
+  private static async findUserError(userId?: number | null) {
+    return userId && !(await Usuarios.findByPk(userId)) ? "Usuario nao encontrado." : null;
+  }
+
+  private static buildUpdateData(endereco: UsuarioEnderecos, payload: UsuarioEnderecoPayload): UsuarioEnderecoUpdateData {
+    return { id_usuario: payload.userId ?? endereco.id_usuario, cep: payload.cep ?? endereco.cep, logradouro: payload.logradouro ?? endereco.logradouro, numero: payload.numero ?? endereco.numero, complemento: payload.complemento ?? endereco.complemento, bairro: payload.bairro ?? endereco.bairro, cidade: payload.cidade ?? endereco.cidade, estado: payload.estado ?? endereco.estado, pais: payload.pais ?? endereco.pais, principal: payload.hasPrincipalField() ? payload.principal : endereco.principal, ativo: payload.hasAtivoField() ? payload.ativo : endereco.ativo };
+  }
+
+  static async getByIdUser(req: UsuarioEnderecoRequest, res: Response) {
+    const userId = UsuarioEnderecosController.parsePositiveId(req.params.id_user);
+    if (!userId) return res.status(400).json({ message: "ID do usuario invalido." });
+    const enderecos = await UsuarioEnderecos.findAll({ where: { id_usuario: userId } });
+    if (!enderecos) return res.status(404).json({ message: "Endereco nao encontrado." });
     return res.status(200).send(enderecos);
   }
 
-
-  static async create(req: Request, res: Response) {
-    const {
-      id_usuario,
-      cep,
-      logradouro,
-      numero = null,
-      complemento = null,
-      bairro = null,
-      cidade = null,
-      estado = null,
-      pais = "Brasil",
-      principal = false,
-      ativo = true,
-    } = req.body;
-
-    if (!id_usuario || !cep || !logradouro) {
-      return res.status(400).json({
-        message: "id_usuario, cep e logradouro são obrigatórios.",
-      });
-    }
-
-    const usuario = await Usuarios.findByPk(Number(id_usuario));
-    if (!usuario) {
-      return res.status(404).json({ message: "Usuário não encontrado" });
-    }
-
-    const endereco = await UsuarioEnderecos.create({
-      id_usuario: Number(id_usuario),
-      cep,
-      logradouro,
-      numero,
-      complemento,
-      bairro,
-      cidade,
-      estado,
-      pais,
-      principal: Boolean(principal),
-      ativo: Boolean(ativo),
-    });
-
-    return res.status(201).send(endereco);
+  static async create(req: UsuarioEnderecoRequest, res: Response) {
+    const payload = new UsuarioEnderecoPayload(req.body), message = UsuarioEnderecosController.getCreateErrorMessage(payload);
+    if (message) return res.status(400).json({ message });
+    const userMessage = await UsuarioEnderecosController.findUserError(payload.userId);
+    if (userMessage) return res.status(404).json({ message: userMessage });
+    return res.status(201).send(await UsuarioEnderecos.create({ id_usuario: payload.userId!, cep: payload.cep!, logradouro: payload.logradouro!, numero: payload.numero, complemento: payload.complemento, bairro: payload.bairro, cidade: payload.cidade, estado: payload.estado, pais: payload.pais, principal: payload.principal, ativo: payload.ativo }));
   }
 
-  static async update(req: Request, res: Response) {
-    const { id } = req.params;
-    const {
-      id_usuario,
-      cep,
-      logradouro,
-      numero,
-      complemento,
-      bairro,
-      cidade,
-      estado,
-      pais,
-      principal,
-      ativo,
-    } = req.body;
-
-    const endereco = await UsuarioEnderecos.findByPk(Number(id));
-    if (!endereco) {
-      return res.status(404).json({ message: "Endereço não encontrado" });
-    }
-
-    if (id_usuario !== undefined) {
-      const usuario = await Usuarios.findByPk(Number(id_usuario));
-      if (!usuario) {
-        return res.status(404).json({ message: "Usuário não encontrado" });
-      }
-    }
-
-    await endereco.update({
-      id_usuario: id_usuario !== undefined ? Number(id_usuario) : endereco.id_usuario,
-      cep: cep ?? endereco.cep,
-      logradouro: logradouro ?? endereco.logradouro,
-      numero: numero !== undefined ? numero : endereco.numero,
-      complemento: complemento !== undefined ? complemento : endereco.complemento,
-      bairro: bairro !== undefined ? bairro : endereco.bairro,
-      cidade: cidade !== undefined ? cidade : endereco.cidade,
-      estado: estado !== undefined ? estado : endereco.estado,
-      pais: pais !== undefined ? pais : endereco.pais,
-      principal: principal !== undefined ? Boolean(principal) : endereco.principal,
-      ativo: ativo !== undefined ? Boolean(ativo) : endereco.ativo,
-    });
-
+  static async update(req: UsuarioEnderecoRequest, res: Response) {
+    const addressId = UsuarioEnderecosController.parsePositiveId(req.params.id), payload = new UsuarioEnderecoPayload(req.body);
+    if (!addressId) return res.status(400).json({ message: "ID do endereco invalido." });
+    const endereco = await UsuarioEnderecos.findByPk(addressId), message = UsuarioEnderecosController.getUpdateErrorMessage(payload);
+    if (!endereco) return res.status(404).json({ message: "Endereco nao encontrado." });
+    if (message) return res.status(400).json({ message });
+    const userMessage = await UsuarioEnderecosController.findUserError(payload.userId);
+    if (userMessage) return res.status(404).json({ message: userMessage });
+    await endereco.update(UsuarioEnderecosController.buildUpdateData(endereco, payload));
     return res.status(200).send(endereco);
   }
 
-  static async remove(req: Request, res: Response) {
-    const { id } = req.params;
-    const endereco = await UsuarioEnderecos.findByPk(Number(id));
-
-    if (!endereco) {
-      return res.status(404).json({ message: "Endereço não encontrado" });
-    }
-
+  static async remove(req: UsuarioEnderecoRequest, res: Response) {
+    const addressId = UsuarioEnderecosController.parsePositiveId(req.params.id);
+    if (!addressId) return res.status(400).json({ message: "ID do endereco invalido." });
+    const endereco = await UsuarioEnderecos.findByPk(addressId);
+    if (!endereco) return res.status(404).json({ message: "Endereco nao encontrado." });
     await endereco.destroy();
     return res.status(204).send();
   }

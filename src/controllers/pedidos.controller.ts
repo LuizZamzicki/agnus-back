@@ -2,176 +2,118 @@ import { Request, Response } from "express";
 import Pedidos from "../models/Pedidos";
 import UsuarioEnderecos from "../models/UsuarioEnderecos";
 import Usuarios from "../models/Usuarios";
+import type { PedidoBody, PedidoQuery, PedidoRouteParams, PedidoStatus, PedidoUpdateData } from "../types/pedido.types";
+
+type PedidoRequest = Request<PedidoRouteParams, object, PedidoBody, PedidoQuery>;
+
+class PedidoPayload {
+  constructor(private readonly body: PedidoBody) {}
+
+  private parseId(value: number | string | null | undefined) {
+    const parsedId = Number(value);
+    return Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
+  }
+
+  get userId() { return this.parseId(this.body.id_usuario); }
+  get addressId() { return this.parseId(this.body.id_usuario_endereco); }
+  get status() { return PedidosController.normalizeStatus(this.body.status); }
+  get valorTotal() { return this.body.valor_total ?? 0; }
+  get valorFrete() { return this.body.valor_frete ?? null; }
+  hasUserField() { return this.body.id_usuario !== undefined; }
+  hasAddressField() { return this.body.id_usuario_endereco !== undefined; }
+  hasStatusField() { return this.body.status !== undefined; }
+  hasValorTotalField() { return this.body.valor_total !== undefined; }
+  hasValorFreteField() { return this.body.valor_frete !== undefined; }
+}
 
 class PedidosController {
-  private static readonly STATUS_VALIDOS = [
-    "aguardando_calculo_frete",
-    "aguardando_pagamento",
-    "pago",
-    "enviado",
-    "entregue",
-    "cancelado",
-  ];
+  private static readonly VALID_STATUSES: PedidoStatus[] = ["aguardando_calculo_frete", "aguardando_pagamento", "pago", "enviado", "entregue", "cancelado"];
 
-  private static getModelNumber(instance: any, fieldName: string) {
-    const rawValue = typeof instance?.get === "function" ? instance.get(fieldName) : instance?.[fieldName];
-    const parsedValue = Number(rawValue);
-    return Number.isNaN(parsedValue) ? null : parsedValue;
+  static parsePositiveId(value: number | string | null | undefined) {
+    const parsedId = Number(value);
+    return Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
   }
 
-  static async findAll(req: Request, res: Response) {
-    const { id_usuario, status } = req.query;
-    const where: { id_usuario?: number; status?: string } = {};
-
-    if (id_usuario !== undefined) {
-      const parsedUsuarioId = Number(id_usuario);
-      if (Number.isNaN(parsedUsuarioId)) {
-        return res.status(400).json({ message: "id_usuario invÃ¡lido." });
-      }
-      where.id_usuario = parsedUsuarioId;
-    }
-
-    if (status !== undefined) {
-      const normalizedStatus = String(status);
-      if (!PedidosController.STATUS_VALIDOS.includes(normalizedStatus)) {
-        return res.status(400).json({ message: "status invÃ¡lido." });
-      }
-      where.status = normalizedStatus;
-    }
-
-    const pedidos = await Pedidos.findAll({ where });
-    return res.status(200).send(pedidos);
+  static normalizeStatus(value: PedidoBody["status"]) {
+    return typeof value === "string" && PedidosController.VALID_STATUSES.includes(value as PedidoStatus) ? value as PedidoStatus : null;
   }
 
-  static async getById(req: Request, res: Response) {
-    const { id } = req.params;
-    const pedido = await Pedidos.findByPk(Number(id));
+  private static getCreateErrorMessage(payload: PedidoPayload) {
+    if (!payload.hasUserField() || !payload.hasAddressField()) return "id_usuario e id_usuario_endereco sao obrigatorios.";
+    if (!payload.userId) return "id_usuario invalido.";
+    if (!payload.addressId) return "id_usuario_endereco invalido.";
+    if (payload.hasStatusField() && !payload.status) return "status invalido.";
+    return null;
+  }
 
-    if (!pedido) {
-      return res.status(404).json({ message: "Pedido nÃ£o encontrado" });
-    }
+  private static getUpdateErrorMessage(payload: PedidoPayload) {
+    if (payload.hasUserField() && !payload.userId) return "id_usuario invalido.";
+    if (payload.hasAddressField() && !payload.addressId) return "id_usuario_endereco invalido.";
+    if (payload.hasStatusField() && !payload.status) return "status invalido.";
+    return null;
+  }
 
+  private static buildWhere(query: PedidoQuery) {
+    const userId = query.id_usuario === undefined ? undefined : PedidosController.parsePositiveId(query.id_usuario), status = query.status === undefined ? undefined : PedidosController.normalizeStatus(query.status);
+    if (query.id_usuario !== undefined && !userId) return { message: "id_usuario invalido." };
+    if (query.status !== undefined && !status) return { message: "status invalido." };
+    return { id_usuario: userId, status };
+  }
+
+  private static async findUserError(userId?: number | null) {
+    return userId && !(await Usuarios.findByPk(userId)) ? "Usuario nao encontrado." : null;
+  }
+
+  private static async findAddress(addressId?: number | null) {
+    return addressId ? UsuarioEnderecos.findByPk(addressId) : null;
+  }
+
+  private static buildUpdateData(pedido: Pedidos, payload: PedidoPayload, userId: number, addressId: number): PedidoUpdateData {
+    return { id_usuario: userId, id_usuario_endereco: addressId, status: payload.status ?? pedido.status, valor_total: payload.hasValorTotalField() ? payload.valorTotal : pedido.valor_total, valor_frete: payload.hasValorFreteField() ? payload.valorFrete : pedido.valor_frete };
+  }
+
+  static async findAll(req: PedidoRequest, res: Response) {
+    const where = PedidosController.buildWhere(req.query);
+    if ("message" in where) return res.status(400).json({ message: where.message });
+    return res.status(200).send(await Pedidos.findAll({ where: { ...(where.id_usuario ? { id_usuario: where.id_usuario } : {}), ...(where.status ? { status: where.status } : {}) } }));
+  }
+
+  static async getById(req: PedidoRequest, res: Response) {
+    const orderId = PedidosController.parsePositiveId(req.params.id);
+    if (!orderId) return res.status(400).json({ message: "ID do pedido invalido." });
+    const pedido = await Pedidos.findByPk(orderId);
+    if (!pedido) return res.status(404).json({ message: "Pedido nao encontrado." });
     return res.status(200).send(pedido);
   }
 
-  static async create(req: Request, res: Response) {
-    const {
-      id_usuario,
-      id_usuario_endereco,
-      status = "aguardando_pagamento",
-      valor_total = 0,
-      valor_frete = null,
-    } = req.body;
-
-    if (!id_usuario || !id_usuario_endereco) {
-      return res.status(400).json({
-        message: "id_usuario e id_usuario_endereco sÃ£o obrigatorios.",
-      });
-    }
-
-    if (!PedidosController.STATUS_VALIDOS.includes(status)) {
-      return res.status(400).json({ message: "status invÃ¡lido." });
-    }
-
-    const usuario = await Usuarios.findByPk(Number(id_usuario));
-    if (!usuario) {
-      return res.status(404).json({ message: "UsuÃ¡rio nÃ£o encontrado" });
-    }
-
-    const endereco = await UsuarioEnderecos.findByPk(Number(id_usuario_endereco));
-    if (!endereco) {
-      return res.status(404).json({ message: "EndereÃ§o do usuÃ¡rio nÃ£o encontrado" });
-    }
-
-    const enderecoUserId = PedidosController.getModelNumber(endereco, "id_usuario");
-    if (enderecoUserId !== Number(id_usuario)) {
-      return res.status(400).json({
-        message: "O endereÃ§o informado nÃ£o pertence ao usuÃ¡rio informado.",
-      });
-    }
-
-    const pedido = await Pedidos.create({
-      id_usuario: Number(id_usuario),
-      id_usuario_endereco: Number(id_usuario_endereco),
-      status,
-      valor_total,
-      valor_frete,
-    });
-
-    return res.status(201).send(pedido);
+  static async create(req: PedidoRequest, res: Response) {
+    const payload = new PedidoPayload(req.body), message = PedidosController.getCreateErrorMessage(payload), userMessage = message ? null : await PedidosController.findUserError(payload.userId), endereco = userMessage ? null : await PedidosController.findAddress(payload.addressId);
+    if (message) return res.status(400).json({ message });
+    if (userMessage) return res.status(404).json({ message: userMessage });
+    if (!endereco) return res.status(404).json({ message: "Endereco do usuario nao encontrado." });
+    if (endereco.id_usuario !== payload.userId) return res.status(400).json({ message: "O endereco informado nao pertence ao usuario informado." });
+    return res.status(201).send(await Pedidos.create({ id_usuario: payload.userId!, id_usuario_endereco: payload.addressId!, status: payload.status ?? "aguardando_pagamento", valor_total: payload.valorTotal, valor_frete: payload.valorFrete }));
   }
 
-  static async update(req: Request, res: Response) {
-    const { id } = req.params;
-    const { id_usuario, id_usuario_endereco, status, valor_total, valor_frete } = req.body;
-
-    const pedido = await Pedidos.findByPk(Number(id));
-    if (!pedido) {
-      return res.status(404).json({ message: "Pedido nÃ£o encontrado" });
-    }
-
-    if (status !== undefined && !PedidosController.STATUS_VALIDOS.includes(status)) {
-      return res.status(400).json({ message: "status invÃ¡lido." });
-    }
-
-    const nextIdUsuario =
-      id_usuario !== undefined
-        ? Number(id_usuario)
-        : PedidosController.getModelNumber(pedido, "id_usuario");
-    const nextIdUsuarioEndereco =
-      id_usuario_endereco !== undefined
-        ? Number(id_usuario_endereco)
-        : PedidosController.getModelNumber(pedido, "id_usuario_endereco");
-
-    if (nextIdUsuario == null || nextIdUsuarioEndereco == null) {
-      return res.status(400).json({
-        message: "Pedido com relacionamento de usuario ou endereco invalido.",
-      });
-    }
-
-    if (id_usuario !== undefined) {
-      const usuario = await Usuarios.findByPk(nextIdUsuario);
-      if (!usuario) {
-        return res.status(404).json({ message: "UsuÃ¡rio nÃ£o encontrado" });
-      }
-    }
-
-    if (id_usuario_endereco !== undefined) {
-      const endereco = await UsuarioEnderecos.findByPk(nextIdUsuarioEndereco);
-      if (!endereco) {
-        return res.status(404).json({ message: "EndereÃ§o do usuÃ¡rio nÃ£o encontrado" });
-      }
-    }
-
-    const enderecoFinal = await UsuarioEnderecos.findByPk(nextIdUsuarioEndereco);
-    const enderecoFinalUserId = enderecoFinal
-      ? PedidosController.getModelNumber(enderecoFinal, "id_usuario")
-      : null;
-    if (!enderecoFinal || enderecoFinalUserId !== nextIdUsuario) {
-      return res.status(400).json({
-        message: "O endereÃ§o informado nÃ£o pertence ao usuÃ¡rio informado.",
-      });
-    }
-
-    await pedido.update({
-      id_usuario: nextIdUsuario,
-      id_usuario_endereco: nextIdUsuarioEndereco,
-      status: status ?? pedido.status,
-      valor_total: valor_total !== undefined ? valor_total : pedido.valor_total,
-      valor_frete: valor_frete !== undefined ? valor_frete : pedido.valor_frete,
-    });
-
+  static async update(req: PedidoRequest, res: Response) {
+    const orderId = PedidosController.parsePositiveId(req.params.id), payload = new PedidoPayload(req.body);
+    if (!orderId) return res.status(400).json({ message: "ID do pedido invalido." });
+    const pedido = await Pedidos.findByPk(orderId), message = PedidosController.getUpdateErrorMessage(payload);
+    if (!pedido) return res.status(404).json({ message: "Pedido nao encontrado." });
+    if (message) return res.status(400).json({ message });
+    const userId = payload.userId ?? pedido.id_usuario, addressId = payload.addressId ?? pedido.id_usuario_endereco, userMessage = await PedidosController.findUserError(payload.userId), endereco = await PedidosController.findAddress(addressId);
+    if (userMessage) return res.status(404).json({ message: userMessage });
+    if (!endereco) return res.status(404).json({ message: "Endereco do usuario nao encontrado." });
+    if (endereco.id_usuario !== userId) return res.status(400).json({ message: "O endereco informado nao pertence ao usuario informado." });
+    await pedido.update(PedidosController.buildUpdateData(pedido, payload, userId, addressId));
     return res.status(200).send(pedido);
   }
 
-  static async remove(req: Request, res: Response) {
-    const { id } = req.params;
-    const pedido = await Pedidos.findByPk(Number(id));
-
-    if (!pedido) {
-      return res.status(404).json({ message: "Pedido nÃ£o encontrado" });
-    }
-
+  static async remove(req: PedidoRequest, res: Response) {
+    const orderId = PedidosController.parsePositiveId(req.params.id);
+    if (!orderId) return res.status(400).json({ message: "ID do pedido invalido." });
+    const pedido = await Pedidos.findByPk(orderId);
+    if (!pedido) return res.status(404).json({ message: "Pedido nao encontrado." });
     await pedido.destroy();
     return res.status(204).send();
   }

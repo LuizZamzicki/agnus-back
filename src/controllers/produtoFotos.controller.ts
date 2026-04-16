@@ -2,200 +2,135 @@ import { Request, Response } from "express";
 import ProdutoCores from "../models/ProdutoCores";
 import ProdutoFotos from "../models/ProdutoFotos";
 import Produtos from "../models/Produtos";
+import type {
+  ProdutoFotoBody,
+  ProdutoFotoFiles,
+  ProdutoFotoPathInput,
+  ProdutoFotoRouteParams,
+  ProdutoFotoSourceInput,
+  ProdutoFotoUpdateData,
+} from "../types/produto-foto.types";
 import { saveProdutoFotoBits } from "../utils/produtoFotoStorage";
 
+type ProdutoFotoRequest = Request<ProdutoFotoRouteParams, object, ProdutoFotoBody>;
+type ProdutoFotoRequestWithFiles = ProdutoFotoRequest & { files?: ProdutoFotoFiles };
+
+class ProdutoFotoPayload {
+  constructor(private readonly body: ProdutoFotoBody) {}
+
+  private parseId(value: number | string | null | undefined) {
+    const parsedId = Number(value);
+    return Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
+  }
+
+  get productId() { return this.parseId(this.body.id_produto); }
+  get colorId() { return this.parseId(this.body.id_produto_cor); }
+  get fotoInput() { return this.body.caminho_url ?? this.body.caminhoUrl; }
+  hasProductField() { return this.body.id_produto !== undefined; }
+  hasColorField() { return this.body.id_produto_cor !== undefined; }
+  hasPhotoField() { return this.body.caminho_url !== undefined || this.body.caminhoUrl !== undefined; }
+}
+
 class ProdutoFotosController {
-  private static getUploadedFiles(req: Request): Express.Multer.File[] {
-    const files = (req as Request & {
-      files?: Express.Multer.File[] | Record<string, Express.Multer.File[]>;
-    }).files;
-
-    if (!files) {
-      return [];
-    }
-
-    if (Array.isArray(files)) {
-      return files;
-    }
-
-    return Object.values(files).flat();
+  private static parsePositiveId(value: string | undefined) {
+    const parsedId = Number(value);
+    return Number.isInteger(parsedId) && parsedId > 0 ? parsedId : null;
   }
 
-  private static findUploadedFile(req: Request, key?: string) {
+  private static getUploadedFiles(req: ProdutoFotoRequestWithFiles) {
+    if (!req.files) return [];
+    return Array.isArray(req.files) ? req.files : Object.values(req.files).flat();
+  }
+
+  private static getFileKey(payload: ProdutoFotoPayload) {
+    return typeof payload.fotoInput === "string" && !payload.fotoInput.startsWith("http") ? payload.fotoInput : undefined;
+  }
+
+  private static findUploadedFile(req: ProdutoFotoRequestWithFiles, fileKey?: string) {
     const files = ProdutoFotosController.getUploadedFiles(req);
-    if (!files.length) {
-      return undefined;
-    }
-
-    if (key) {
-      const byFieldName = files.find((file) => file.fieldname === key);
-      if (byFieldName) {
-        return byFieldName;
-      }
-
-      const byOriginalName = files.find((file) => file.originalname === key);
-      if (byOriginalName) {
-        return byOriginalName;
-      }
-    }
-
-    return files[0];
+    if (!files.length || !fileKey) return files[0];
+    return files.find((file) => file.fieldname === fileKey || file.originalname === fileKey) ?? files[0];
   }
 
-  private static parseFotoUrl(foto: unknown) {
-    if (typeof foto === "string") {
-      return foto.trim();
-    }
-
-    if (foto && typeof foto === "object") {
-      const source = foto as Record<string, unknown>;
-      const rawUrl =
-        source.caminho_url ??
-        source.caminhoUrl ??
-        source.caminho ??
-        source.url ??
-        source.src ??
-        source.link ??
-        source.path ??
-        source.preview;
-      if (typeof rawUrl === "string") {
-        return rawUrl.trim();
-      }
-    }
-
-    return "";
+  private static parseFotoUrl(foto?: ProdutoFotoSourceInput) {
+    if (typeof foto === "string") return foto.trim();
+    if (!foto || typeof foto !== "object" || Buffer.isBuffer(foto) || Array.isArray(foto) || "fieldname" in foto) return "";
+    return "arquivo_base64" in foto ? "" : ProdutoFotosController.parseFotoUrlObject(foto);
   }
 
-  private static async resolveFotoPath(foto: unknown) {
-    const savedFilePath = await saveProdutoFotoBits(foto);
-    if (savedFilePath) {
-      return savedFilePath;
-    }
-
-    return ProdutoFotosController.parseFotoUrl(foto);
+  private static parseFotoUrlObject(foto: ProdutoFotoPathInput) {
+    return foto.caminho_url?.trim() || foto.caminhoUrl?.trim() || "";
   }
 
-  static async getByIdProduto(req: Request, res: Response) {
-    const { id_produto } = req.params;
-    const foto = await ProdutoFotos.findAll({ where: { id_produto: Number(id_produto) } });
+  private static async resolveFotoPath(foto?: ProdutoFotoSourceInput) {
+    return (await saveProdutoFotoBits(foto)) ?? ProdutoFotosController.parseFotoUrl(foto);
+  }
 
-    if (!foto) {
-      return res.status(404).json({ message: "Foto do produto nao encontrada" });
-    }
+  private static getCreateErrorMessage(payload: ProdutoFotoPayload, photoPath: string) {
+    if (!payload.hasProductField() || !payload.hasColorField() || !photoPath) return "id_produto, id_produto_cor e caminho_url (ou bits) sao obrigatorios.";
+    if (!payload.productId) return "id_produto invalido.";
+    if (!payload.colorId) return "id_produto_cor invalido.";
+    return null;
+  }
 
+  private static getUpdateErrorMessage(payload: ProdutoFotoPayload, photoPath?: string) {
+    if (payload.hasProductField() && !payload.productId) return "id_produto invalido.";
+    if (payload.hasColorField() && !payload.colorId) return "id_produto_cor invalido.";
+    if (payload.hasPhotoField() && !photoPath) return "caminho_url invalido.";
+    return null;
+  }
+
+  private static async findProductError(productId?: number | null) {
+    return productId && !(await Produtos.findByPk(productId)) ? "Produto nao encontrado." : null;
+  }
+
+  private static async findColor(productId: number, colorId: number) {
+    const cor = await ProdutoCores.findByPk(colorId);
+    if (!cor) return { message: "Cor do produto nao encontrada.", status: 404 };
+    return cor.id_produto === productId ? cor : { message: "A cor informada nao pertence ao produto informado.", status: 400 };
+  }
+
+  private static buildUpdateData(foto: ProdutoFotos, payload: ProdutoFotoPayload, photoPath?: string): ProdutoFotoUpdateData {
+    return { id_produto: payload.productId ?? foto.id_produto, id_produto_cor: payload.colorId ?? foto.id_produto_cor, caminho_url: photoPath ?? foto.caminho_url };
+  }
+
+  static async getByIdProduto(req: ProdutoFotoRequest, res: Response) {
+    const productId = ProdutoFotosController.parsePositiveId(req.params.id_produto);
+    if (!productId) return res.status(400).json({ message: "ID do produto invalido." });
+    const fotos = await ProdutoFotos.findAll({ where: { id_produto: productId } });
+    if (!fotos) return res.status(404).json({ message: "Foto do produto nao encontrada." });
+    return res.status(200).send(fotos);
+  }
+
+  static async create(req: ProdutoFotoRequestWithFiles, res: Response) {
+    const payload = new ProdutoFotoPayload(req.body), photoPath = await ProdutoFotosController.resolveFotoPath(ProdutoFotosController.findUploadedFile(req, ProdutoFotosController.getFileKey(payload)) ?? payload.fotoInput), message = ProdutoFotosController.getCreateErrorMessage(payload, photoPath);
+    if (message) return res.status(400).json({ message });
+    const productMessage = await ProdutoFotosController.findProductError(payload.productId);
+    if (productMessage) return res.status(404).json({ message: productMessage });
+    const colorResult = await ProdutoFotosController.findColor(payload.productId!, payload.colorId!);
+    if ("message" in colorResult) return res.status(colorResult.status).json({ message: colorResult.message });
+    return res.status(201).send(await ProdutoFotos.create({ id_produto: payload.productId!, id_produto_cor: payload.colorId!, caminho_url: photoPath }));
+  }
+
+  static async update(req: ProdutoFotoRequestWithFiles, res: Response) {
+    const photoId = ProdutoFotosController.parsePositiveId(req.params.id), payload = new ProdutoFotoPayload(req.body);
+    if (!photoId) return res.status(400).json({ message: "ID da foto invalido." });
+    const foto = await ProdutoFotos.findByPk(photoId), photoPath = payload.hasPhotoField() || ProdutoFotosController.getUploadedFiles(req).length ? await ProdutoFotosController.resolveFotoPath(ProdutoFotosController.findUploadedFile(req, ProdutoFotosController.getFileKey(payload)) ?? payload.fotoInput) : undefined, message = ProdutoFotosController.getUpdateErrorMessage(payload, photoPath);
+    if (!foto) return res.status(404).json({ message: "Foto do produto nao encontrada." });
+    if (message) return res.status(400).json({ message });
+    const productId = payload.productId ?? foto.id_produto, colorId = payload.colorId ?? foto.id_produto_cor, productMessage = await ProdutoFotosController.findProductError(payload.productId);
+    if (productMessage) return res.status(404).json({ message: productMessage });
+    const colorResult = await ProdutoFotosController.findColor(productId, colorId);
+    if ("message" in colorResult) return res.status(colorResult.status).json({ message: colorResult.message });
+    await foto.update(ProdutoFotosController.buildUpdateData(foto, payload, photoPath));
     return res.status(200).send(foto);
   }
 
-  static async create(req: Request, res: Response) {
-    const { id_produto, id_produto_cor, caminho_url, caminhoUrl } = req.body;
-    const fileKey =
-      typeof caminho_url === "string" && !caminho_url.startsWith("http")
-        ? caminho_url
-        : typeof caminhoUrl === "string" && !caminhoUrl.startsWith("http")
-          ? caminhoUrl
-          : undefined;
-    const uploadedFile = ProdutoFotosController.findUploadedFile(req, fileKey);
-    const parsedUrl = await ProdutoFotosController.resolveFotoPath(
-      uploadedFile ?? caminho_url ?? caminhoUrl,
-    );
-
-    if (!id_produto || !id_produto_cor || !parsedUrl) {
-      return res.status(400).json({
-        message: "id_produto, id_produto_cor e caminho_url (ou bits) sao obrigatorios.",
-      });
-    }
-
-    const produto = await Produtos.findByPk(Number(id_produto));
-    if (!produto) {
-      return res.status(404).json({ message: "Produto nao encontrado" });
-    }
-
-    const cor = await ProdutoCores.findByPk(Number(id_produto_cor));
-    if (!cor) {
-      return res.status(404).json({ message: "Cor do produto nao encontrada" });
-    }
-
-    if (cor.id_produto !== Number(id_produto)) {
-      return res.status(400).json({
-        message: "A cor informada nao pertence ao produto informado.",
-      });
-    }
-
-    const foto = await ProdutoFotos.create({
-      id_produto: Number(id_produto),
-      id_produto_cor: Number(id_produto_cor),
-      caminho_url: parsedUrl,
-    });
-
-    return res.status(201).send(foto);
-  }
-
-  static async update(req: Request, res: Response) {
-    const { id } = req.params;
-    const { id_produto, id_produto_cor, caminho_url, caminhoUrl } = req.body;
-    const fileKey =
-      typeof caminho_url === "string" && !caminho_url.startsWith("http")
-        ? caminho_url
-        : typeof caminhoUrl === "string" && !caminhoUrl.startsWith("http")
-          ? caminhoUrl
-          : undefined;
-    const uploadedFile = ProdutoFotosController.findUploadedFile(req, fileKey);
-    const parsedUrl =
-      caminho_url !== undefined || caminhoUrl !== undefined || uploadedFile !== undefined
-        ? await ProdutoFotosController.resolveFotoPath(uploadedFile ?? caminho_url ?? caminhoUrl)
-        : undefined;
-
-    const foto = await ProdutoFotos.findByPk(Number(id));
-    if (!foto) {
-      return res.status(404).json({ message: "Foto do produto nao encontrada" });
-    }
-
-    const nextIdProduto = id_produto !== undefined ? Number(id_produto) : foto.id_produto;
-    const nextIdProdutoCor =
-      id_produto_cor !== undefined ? Number(id_produto_cor) : foto.id_produto_cor;
-
-    if (id_produto !== undefined) {
-      const produto = await Produtos.findByPk(nextIdProduto);
-      if (!produto) {
-        return res.status(404).json({ message: "Produto nao encontrado" });
-      }
-    }
-
-    if (id_produto_cor !== undefined) {
-      const cor = await ProdutoCores.findByPk(nextIdProdutoCor);
-      if (!cor) {
-        return res.status(404).json({ message: "Cor do produto nao encontrada" });
-      }
-    }
-
-    if ((caminho_url !== undefined || caminhoUrl !== undefined || uploadedFile !== undefined) && !parsedUrl) {
-      return res.status(400).json({ message: "caminho_url invalido." });
-    }
-
-    const corFinal = await ProdutoCores.findByPk(nextIdProdutoCor);
-    if (!corFinal || corFinal.id_produto !== nextIdProduto) {
-      return res.status(400).json({
-        message: "A cor informada nao pertence ao produto informado.",
-      });
-    }
-
-    await foto.update({
-      id_produto: nextIdProduto,
-      id_produto_cor: nextIdProdutoCor,
-      caminho_url: parsedUrl ?? foto.caminho_url,
-    });
-
-    return res.status(200).send(foto);
-  }
-
-  static async remove(req: Request, res: Response) {
-    const { id } = req.params;
-    const foto = await ProdutoFotos.findByPk(Number(id));
-
-    if (!foto) {
-      return res.status(404).json({ message: "Foto do produto nao encontrada" });
-    }
-
+  static async remove(req: ProdutoFotoRequest, res: Response) {
+    const photoId = ProdutoFotosController.parsePositiveId(req.params.id);
+    if (!photoId) return res.status(400).json({ message: "ID da foto invalido." });
+    const foto = await ProdutoFotos.findByPk(photoId);
+    if (!foto) return res.status(404).json({ message: "Foto do produto nao encontrada." });
     await foto.destroy();
     return res.status(204).send();
   }
