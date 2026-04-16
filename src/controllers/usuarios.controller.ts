@@ -12,6 +12,7 @@ import type {
 } from "../types/user.types";
 import { buildPaginationMeta, parsePagination } from "../utils/pagination";
 import { evaluatePasswordStrength } from "../utils/passwordStrength";
+import { isValidCpf, isValidEmail } from "../utils/userValidation";
 import UsuarioSenhasHistoricoController from "./usuarioSenhasHistorico.controller";
 
 type UsuarioRequest = Request<UsuarioRouteParams, object, UsuarioBody>;
@@ -71,26 +72,44 @@ class UsuariosController {
     return passwordStrength.isValid ? null : { message: UsuariosController.PASSWORD_MESSAGE, passwordStrength };
   }
 
+  private static getCpfMessage(payload: UsuarioPayload) {
+    if (!payload.hasCpfField() || !payload.cpf) return payload.hasCpfField() ? "cpf invalido." : null;
+    return isValidCpf(payload.cpf) ? null : "cpf invalido.";
+  }
+
+  private static getEmailMessage(email?: string | null) {
+    return email && isValidEmail(email) ? null : "email invalido.";
+  }
+
+  private static getEmailUpdateMessage(payload: UsuarioPayload, currentEmail: string) {
+    if (!payload.hasEmailField() || !payload.email) return payload.hasEmailField() ? "email invalido." : null;
+    if (!isValidEmail(payload.email)) return "email invalido.";
+    return payload.email === currentEmail ? null : "email nao pode ser alterado.";
+  }
+
   private static getCreateErrorMessage(payload: UsuarioPayload) {
-    if (!payload.nome || !payload.email || !payload.senha) return "Nome, email e senha sao obrigatorios.";
+    if (!payload.nome || !payload.cpf || !payload.email || !payload.senha) return "Nome, cpf, email e senha sao obrigatorios.";
+    if (UsuariosController.getCpfMessage(payload)) return UsuariosController.getCpfMessage(payload);
+    if (UsuariosController.getEmailMessage(payload.email)) return UsuariosController.getEmailMessage(payload.email);
     if (!payload.hasValidTipo()) return "Tipo deve ser cliente ou administrador.";
     return null;
   }
 
-  private static getUpdateErrorMessage(payload: UsuarioPayload) {
+  private static getUpdateErrorMessage(payload: UsuarioPayload, currentEmail: string) {
     if (payload.hasNomeField() && !payload.nome) return "nome invalido.";
-    if (payload.hasEmailField() && !payload.email) return "email invalido.";
     if (payload.hasSenhaField() && !payload.senha) return "senha invalida.";
+    if (UsuariosController.getCpfMessage(payload)) return UsuariosController.getCpfMessage(payload);
+    if (UsuariosController.getEmailUpdateMessage(payload, currentEmail)) return UsuariosController.getEmailUpdateMessage(payload, currentEmail);
     if (!payload.hasValidTipo()) return "Tipo deve ser cliente ou administrador.";
     return null;
-  }
-
-  private static async findDuplicateEmailMessage(email?: string | null, currentEmail?: string) {
-    return email && email !== currentEmail && (await Usuarios.findOne({ where: { email } })) ? "Usuario ja existe com esse email!" : null;
   }
 
   private static buildUpdateData(user: Usuarios, payload: UsuarioPayload, passwordHash: string): UsuarioUpdateData {
-    return { nome: payload.nome ?? user.nome, cpf: payload.hasCpfField() ? payload.cpf : user.cpf, email: payload.email ?? user.email, senha: passwordHash, tipo: payload.hasTipoField() ? payload.tipo : user.tipo };
+    return { nome: payload.nome ?? user.nome, cpf: payload.hasCpfField() ? payload.cpf : user.cpf, email: user.email, senha: passwordHash, tipo: payload.hasTipoField() ? payload.tipo : user.tipo };
+  }
+
+  private static async findDuplicateEmailMessage(email: string) {
+    return (await Usuarios.findOne({ where: { email } })) ? "Usuario ja existe com esse email!" : null;
   }
 
   private static getPasswordBodyMessage(payload: UsuarioPasswordPayload) {
@@ -132,7 +151,7 @@ class UsuariosController {
     if (message) return res.status(400).json({ message });
     const passwordError = UsuariosController.getPasswordError(payload.senha!);
     if (passwordError) return res.status(400).json(passwordError);
-    const duplicateMessage = await UsuariosController.findDuplicateEmailMessage(payload.email);
+    const duplicateMessage = await UsuariosController.findDuplicateEmailMessage(payload.email!);
     if (duplicateMessage) return res.status(400).json({ message: duplicateMessage });
     const passwordHash = await UsuariosController.hashPassword(payload.senha!), user = await Usuarios.create({ nome: payload.nome!, cpf: payload.cpf, email: payload.email!, senha: passwordHash, tipo: payload.tipo });
     await UsuarioSenhasHistoricoController.create(user.id_usuario, passwordHash);
@@ -153,11 +172,10 @@ class UsuariosController {
     if (!userId) return res.status(400).json({ message: "ID do usuario invalido." });
     const user = await Usuarios.findByPk(userId);
     if (!user) return res.status(404).json({ message: "Usuario nao encontrado." });
-    const message = UsuariosController.getUpdateErrorMessage(payload), passwordError = payload.senha ? UsuariosController.getPasswordError(payload.senha) : null;
+    const message = UsuariosController.getUpdateErrorMessage(payload, user.email), passwordError = payload.senha ? UsuariosController.getPasswordError(payload.senha) : null;
     if (message) return res.status(400).json({ message });
     if (passwordError) return res.status(400).json(passwordError);
-    const duplicateMessage = await UsuariosController.findDuplicateEmailMessage(payload.email, user.email), passwordHash = payload.senha ? await UsuariosController.hashPassword(payload.senha) : user.senha;
-    if (duplicateMessage) return res.status(400).json({ message: duplicateMessage });
+    const passwordHash = payload.senha ? await UsuariosController.hashPassword(payload.senha) : user.senha;
     if (payload.senha) await UsuarioSenhasHistoricoController.create(user.id_usuario, passwordHash);
     await user.update(UsuariosController.buildUpdateData(user, payload, passwordHash));
     return res.status(200).send(UsuariosController.sanitizeUser(user));

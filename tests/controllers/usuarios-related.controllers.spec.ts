@@ -96,13 +96,27 @@ describe("UsuariosController", () => {
 
   it("create retorna 400 para tipo invalido", async () => {
     const response = mockResponse();
-    await UsuariosController.create(mockRequest({ body: { nome: "A", email: "a@a.com", senha: "123", tipo: "x" } }), response);
+    await UsuariosController.create(mockRequest({ body: { nome: "A", cpf: "529.982.247-25", email: "a@a.com", senha: "123", tipo: "x" } }), response);
     expect(response.status).toHaveBeenCalledWith(400);
+  });
+
+  it("create retorna 400 para cpf invalido", async () => {
+    const response = mockResponse();
+    await UsuariosController.create(mockRequest({ body: { nome: "A", cpf: "111.111.111-11", email: "a@a.com", senha: "Senha123!" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "cpf invalido." });
+  });
+
+  it("create retorna 400 para email invalido", async () => {
+    const response = mockResponse();
+    await UsuariosController.create(mockRequest({ body: { nome: "A", cpf: "529.982.247-25", email: "aaa", senha: "Senha123!" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "email invalido." });
   });
 
   it("create retorna 400 para senha fraca", async () => {
     const response = mockResponse();
-    await UsuariosController.create(mockRequest({ body: { nome: "A", email: "a@a.com", senha: "123Abc" } }), response);
+    await UsuariosController.create(mockRequest({ body: { nome: "A", cpf: "529.982.247-25", email: "a@a.com", senha: "123Abc" } }), response);
     expect(response.status).toHaveBeenCalledWith(400);
     expect(response.json).toHaveBeenCalledWith({
       message: "Senha fraca. Ela deve ter pelo menos 8 caracteres, com letra maiuscula, minuscula, numero e simbolo.",
@@ -113,17 +127,17 @@ describe("UsuariosController", () => {
   it("create retorna 400 para email duplicado", async () => {
     const response = mockResponse(), user = buildModelInstance({ id_usuario: 1, nome: "A", email: "a@a.com", senha: "hash", tipo: "cliente" });
     usuariosModel.findOne.mockResolvedValueOnce(user);
-    await UsuariosController.create(mockRequest({ body: { nome: "A", email: "a@a.com", senha: "Senha123!" } }), response);
+    await UsuariosController.create(mockRequest({ body: { nome: "A", cpf: "529.982.247-25", email: "a@a.com", senha: "Senha123!" } }), response);
     expect(response.status).toHaveBeenCalledWith(400);
   });
 
   it("create retorna 201 com o usuario criado", async () => {
-    const response = mockResponse(), created = buildModelInstance({ id_usuario: 2, nome: "B", email: "b@b.com", senha: "hash2", tipo: "cliente" });
+    const response = mockResponse(), created = buildModelInstance({ id_usuario: 2, nome: "B", cpf: "529.982.247-25", email: "b@b.com", senha: "hash2", tipo: "cliente" });
     usuariosModel.findOne.mockResolvedValueOnce(null);
     argon2Mock.hash.mockResolvedValueOnce("hashed");
     usuariosModel.create.mockResolvedValueOnce(created);
     const historicoSpy = jest.spyOn(UsuarioSenhasHistoricoController, "create").mockResolvedValueOnce(true);
-    await UsuariosController.create(mockRequest({ body: { nome: "B", email: "b@b.com", senha: "Senha123!" } }), response);
+    await UsuariosController.create(mockRequest({ body: { nome: "B", cpf: "529.982.247-25", email: "b@b.com", senha: "Senha123!" } }), response);
     expect(historicoSpy).toHaveBeenCalled();
     expect(response.status).toHaveBeenCalledWith(201);
     historicoSpy.mockRestore();
@@ -166,12 +180,28 @@ describe("UsuariosController", () => {
     expect(response.json).toHaveBeenCalledWith({ message: "Usuario nao encontrado." });
   });
 
-  it("update retorna 400 para email duplicado", async () => {
+  it("update retorna 400 para cpf invalido", async () => {
     const response = mockResponse(), user = buildModelInstance({ id_usuario: 2, nome: "B", cpf: null, email: "b@b.com", senha: "hash2", tipo: "cliente" });
     usuariosModel.findByPk.mockResolvedValueOnce(user);
-    usuariosModel.findOne.mockResolvedValueOnce(buildModelInstance({ id_usuario: 9 }));
+    await UsuariosController.update(mockRequest({ params: { id: "2" }, body: { cpf: "111.111.111-11" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "cpf invalido." });
+  });
+
+  it("update retorna 400 para email invalido", async () => {
+    const response = mockResponse(), user = buildModelInstance({ id_usuario: 2, nome: "B", cpf: null, email: "b@b.com", senha: "hash2", tipo: "cliente" });
+    usuariosModel.findByPk.mockResolvedValueOnce(user);
+    await UsuariosController.update(mockRequest({ params: { id: "2" }, body: { email: "x" } }), response);
+    expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "email invalido." });
+  });
+
+  it("update retorna 400 quando tenta alterar o email", async () => {
+    const response = mockResponse(), user = buildModelInstance({ id_usuario: 2, nome: "B", cpf: null, email: "b@b.com", senha: "hash2", tipo: "cliente" });
+    usuariosModel.findByPk.mockResolvedValueOnce(user);
     await UsuariosController.update(mockRequest({ params: { id: "2" }, body: { email: "x@x.com" } }), response);
     expect(response.status).toHaveBeenCalledWith(400);
+    expect(response.json).toHaveBeenCalledWith({ message: "email nao pode ser alterado." });
   });
 
   it("update retorna 400 para tipo invalido", async () => {
@@ -189,12 +219,11 @@ describe("UsuariosController", () => {
   });
 
   it("update retorna 200 quando atualiza com senha", async () => {
-    const response = mockResponse(), user = buildModelInstance({ id_usuario: 2, nome: "B", cpf: null, email: "b@b.com", senha: "hash2", tipo: "cliente" });
+    const response = mockResponse(), user = buildModelInstance({ id_usuario: 2, nome: "B", cpf: "529.982.247-25", email: "b@b.com", senha: "hash2", tipo: "cliente" });
     const historicoSpy = jest.spyOn(UsuarioSenhasHistoricoController, "create").mockResolvedValueOnce(true);
     usuariosModel.findByPk.mockResolvedValueOnce(user);
-    usuariosModel.findOne.mockResolvedValueOnce(null);
     argon2Mock.hash.mockResolvedValueOnce("hash3");
-    await UsuariosController.update(mockRequest({ params: { id: "2" }, body: { email: "new@new.com", senha: "NovaSenha123!", tipo: "administrador" } }), response);
+    await UsuariosController.update(mockRequest({ params: { id: "2" }, body: { cpf: "529.982.247-25", senha: "NovaSenha123!", tipo: "administrador" } }), response);
     expect(user.update).toHaveBeenCalled();
     expect(historicoSpy).toHaveBeenCalled();
     expect(response.status).toHaveBeenCalledWith(200);
@@ -202,9 +231,9 @@ describe("UsuariosController", () => {
   });
 
   it("update retorna 200 quando atualiza sem senha", async () => {
-    const response = mockResponse(), user = buildModelInstance({ id_usuario: 2, nome: "B", cpf: null, email: "b@b.com", senha: "hash2", tipo: "cliente" });
+    const response = mockResponse(), user = buildModelInstance({ id_usuario: 2, nome: "B", cpf: "529.982.247-25", email: "b@b.com", senha: "hash2", tipo: "cliente" });
     usuariosModel.findByPk.mockResolvedValueOnce(user);
-    await UsuariosController.update(mockRequest({ params: { id: "2" }, body: { nome: "C" } }), response);
+    await UsuariosController.update(mockRequest({ params: { id: "2" }, body: { nome: "C", cpf: "111.444.777-35" } }), response);
     expect(user.update).toHaveBeenCalled();
     expect(response.status).toHaveBeenCalledWith(200);
   });
