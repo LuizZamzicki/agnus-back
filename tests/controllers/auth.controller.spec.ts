@@ -68,12 +68,25 @@ describe("AuthController", () => {
 
   it("login informa reutilizacao de senha", async () => {
     const reusedAt = new Date("2026-01-01T12:00:00.000Z");
-    const response = mockResponse(), nowSpy = jest.spyOn(Date, "now").mockReturnValue(reusedAt.getTime() + 5 * 60000);
+    const response = mockResponse();
+    const nowSpy = jest
+      .spyOn(Date, "now")
+      .mockReturnValue(reusedAt.getTime() + 5 * 60000);
+
     authService.authenticate.mockResolvedValueOnce(null);
     jest.spyOn(UsuarioSenhasHistoricoController, "findByPasswordHash").mockResolvedValueOnce(reusedAt);
+
     await AuthController.login(mockRequest({ body: { email: "a@a.com", senha: "123" } }), response);
+
     expect(response.status).toHaveBeenCalledWith(401);
-    expect(response.json).toHaveBeenCalledWith({ message: `Essa senha ja foi usada ha 5 minutos (em ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(reusedAt)}).` });
+    expect(response.json).toHaveBeenCalledWith({
+      message: `Essa senha ja foi usada ha 5 minutos (em ${new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+        timeZone: "America/Sao_Paulo",
+      }).format(reusedAt)}).`,
+    });
+
     nowSpy.mockRestore();
   });
 
@@ -87,9 +100,13 @@ describe("AuthController", () => {
   });
 
   it("login retorna 200 com token e usuario", async () => {
-    const response = mockResponse(), user = buildPublicUser();
+    const response = mockResponse();
+    const user = buildPublicUser();
+
     authService.authenticate.mockResolvedValueOnce({ token: "jwt", user });
+
     await AuthController.login(mockRequest({ body: { email: "a@a.com", senha: "123" } }), response);
+
     expect(authService.authenticate).toHaveBeenCalledWith("a@a.com", "123");
     expect(response.status).toHaveBeenCalledWith(200);
     expect(response.json).toHaveBeenCalledWith({ token: "jwt", user });
@@ -112,11 +129,16 @@ describe("AuthController", () => {
   });
 
   it("me retorna 200 com o usuario sanitizado", async () => {
-    const response = mockResponse(), user = buildModelInstance({ ...buildPublicUser(), senha: "hash" }), publicUser = buildPublicUser();
+    const response = mockResponse();
+    const user = buildModelInstance({ ...buildPublicUser(), senha: "hash" });
+    const publicUser = buildPublicUser();
+
     response.locals.authUser = { id_usuario: 1, email: "a@a.com", tipo: "cliente" };
     usuariosModel.findByPk.mockResolvedValueOnce(user);
     authService.sanitizeUser.mockReturnValueOnce(publicUser);
+
     await AuthController.me(mockRequest(), response);
+
     expect(response.status).toHaveBeenCalledWith(200);
     expect(response.json).toHaveBeenCalledWith({ user: publicUser });
   });
@@ -130,43 +152,67 @@ describe("AuthController", () => {
 
   it("googleStart retorna 500 quando falha", async () => {
     const response = mockResponse();
-    authService.buildGoogleAuthorizationUrl.mockImplementationOnce(() => { throw new Error("no cfg"); });
+
+    authService.buildGoogleAuthorizationUrl.mockImplementationOnce(() => {
+      throw new Error("no cfg");
+    });
+
     await AuthController.googleStart(mockRequest(), response);
+
     expect(response.status).toHaveBeenCalledWith(500);
     expect(response.json).toHaveBeenCalledWith({ message: "no cfg" });
   });
 
   it("googleCallback redireciona quando o provider retorna erro", async () => {
     const response = mockResponse();
+
     await AuthController.googleCallback(mockRequest({ query: { error: "access_denied" } }), response);
-    expect(response.redirect).toHaveBeenCalledWith("http://localhost:3001/login?error=Google%20OAuth%20retornou%20erro%3A%20access_denied");
+
+    expect(response.redirect).toHaveBeenCalledWith(
+      "http://localhost:3001/login?error=Google%20OAuth%20retornou%20erro%3A%20access_denied",
+    );
   });
 
   it("googleCallback redireciona quando os parametros sao invalidos", async () => {
     const response = mockResponse();
+
     await AuthController.googleCallback(mockRequest({ query: { code: 1, state: "a" } }), response);
-    expect(response.redirect).toHaveBeenCalledWith("http://localhost:3001/login?error=Parametros%20OAuth%20invalidos.");
+
+    expect(response.redirect).toHaveBeenCalledWith(
+      "http://localhost:3001/login?error=Parametros%20OAuth%20invalidos.",
+    );
   });
 
   it("googleCallback redireciona com token no sucesso", async () => {
     const response = mockResponse();
+
     authService.authenticateWithGoogle.mockResolvedValueOnce({ token: "jwt", user: buildPublicUser() });
+
     await AuthController.googleCallback(mockRequest({ query: { code: "c", state: "s" } }), response);
+
     expect(authService.authenticateWithGoogle).toHaveBeenCalledWith("c", "s");
-    expect(response.redirect).toHaveBeenCalledWith("http://localhost:3001/login?token=jwt&tipo=cliente&success=1");
+    expect(response.redirect).toHaveBeenCalledWith(
+      "http://localhost:3001/login?token=jwt&tipo=cliente&success=1",
+    );
   });
 
   it("googleCallback redireciona com erro do service", async () => {
     const response = mockResponse();
+
     authService.authenticateWithGoogle.mockRejectedValueOnce(new Error("invalid"));
+
     await AuthController.googleCallback(mockRequest({ query: { code: "c", state: "s" } }), response);
+
     expect(response.redirect).toHaveBeenCalledWith("http://localhost:3001/login?error=invalid");
   });
 
   it("googleCallback redireciona com erro inesperado serializado", async () => {
     const response = mockResponse();
+
     authService.authenticateWithGoogle.mockRejectedValueOnce("invalid");
+
     await AuthController.googleCallback(mockRequest({ query: { code: "c", state: "s" } }), response);
+
     expect(response.redirect).toHaveBeenCalledWith("http://localhost:3001/login?error=invalid");
   });
 });

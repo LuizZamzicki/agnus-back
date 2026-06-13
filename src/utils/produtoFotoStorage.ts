@@ -18,17 +18,22 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
 
 const PHOTO_DIR = path.resolve(process.cwd(), "produto_fotos");
 
-const sanitizeExtension = (extension: string) =>
-  extension.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+const sanitizeExtension = (extension: string) => {
+  return extension.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+};
 
-const extensionFromMime = (mimeType: string) =>
-  MIME_EXTENSION_MAP[mimeType.toLowerCase()] ?? "png";
+const extensionFromMime = (mimeType: string) => {
+  return MIME_EXTENSION_MAP[mimeType.toLowerCase()] ?? "png";
+};
 
 const looksLikeRawBase64 = (value: string) => {
   const normalized = value.replace(/\s+/g, "");
-  return normalized.length >= 64 &&
+
+  return (
+    normalized.length >= 64 &&
     normalized.length % 4 === 0 &&
-    /^[A-Za-z0-9+/=]+$/.test(normalized);
+    /^[A-Za-z0-9+/=]+$/.test(normalized)
+  );
 };
 
 const parseDataUrl = (value: string): ParsedBinaryImage | null => {
@@ -40,6 +45,7 @@ const parseDataUrl = (value: string): ParsedBinaryImage | null => {
   const mimeType = match[1];
   const base64Data = match[2].replace(/\s+/g, "");
   const buffer = Buffer.from(base64Data, "base64");
+
   if (!buffer.length) {
     return null;
   }
@@ -148,7 +154,7 @@ const parseObjectImage = (source: Record<string, unknown>): ParsedBinaryImage | 
         : typeof explicitMime === "string"
           ? extensionFromMime(explicitMime)
           : typeof fileNameExt === "string" && fileNameExt.trim()
-            ? sanitizeExtension(fileNameExt)
+          ? sanitizeExtension(fileNameExt)
           : "png";
 
     return { buffer, extension: extension || "png" };

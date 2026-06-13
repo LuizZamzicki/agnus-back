@@ -53,7 +53,7 @@ export const resolveProdutoContext = async (
   }
 
   const produto = await Produtos.findByPk(cor.id_produto);
-  
+
   if (!produto) {
     return null;
   }
@@ -87,60 +87,63 @@ export const enrichItemsWithProductData = async <T extends ItemLike>(items: T[])
   if (!Array.isArray(items) || items.length === 0) {
     return [];
   }
-  const enrichedItems = await Promise.all(items.map(async (item) => {
-    const rawItem = typeof item.toJSON === "function" ? item.toJSON() : item;
-    const produtoContext = await resolveProdutoContext(
-      Number(item.id_produto_cor),
-      Number(item.id_produto_grade),
-    );
 
-    if (!produtoContext) {
+  const enrichedItems = await Promise.all(
+    items.map(async (item) => {
+      const rawItem = typeof item.toJSON === "function" ? item.toJSON() : item;
+      const produtoContext = await resolveProdutoContext(
+        Number(item.id_produto_cor),
+        Number(item.id_produto_grade),
+      );
+
+      if (!produtoContext) {
+        return {
+          ...rawItem,
+          produto: null,
+          cor: null,
+          grade: null,
+          foto_produto: null,
+        };
+      }
+
+      const { produto, cor, grade, foto } = produtoContext;
+      const quantidade = normalizeQuantidade(item.quantidade);
+      const acrescimoCor = roundMoney(parseMoney(cor.acrescimo));
+      const acrescimoGrade = roundMoney(parseMoney(grade.acrescimo));
+      const precoBase = roundMoney(parseMoney(produto.preco_base));
+      const precoUnitario = roundMoney(precoBase + acrescimoCor + acrescimoGrade);
+      const subtotal = roundMoney(precoUnitario * quantidade);
+      const fotoProduto = foto ?? null;
+
       return {
         ...rawItem,
-        produto: null,
-        cor: null,
-        grade: null,
-        foto_produto: null,
+        quantidade,
+        preco_unitario: precoUnitario,
+        subtotal,
+        nome_produto: produto.nome,
+        descricao_produto: produto.descricao,
+        foto_produto: fotoProduto,
+        produto: {
+          id_produto: produto.id_produto,
+          nome: produto.nome,
+          descricao: produto.descricao,
+          preco_base: precoBase,
+          foto: fotoProduto,
+        },
+        cor: {
+          id_produto_cor: cor.id_produto_cor,
+          nome: cor.nome,
+          codigo_rgb: cor.codigo_rgb,
+          acrescimo: acrescimoCor,
+        },
+        grade: {
+          id_produto_grade: grade.id_produto_grade,
+          nome: grade.nome,
+          acrescimo: acrescimoGrade,
+        },
       };
-    }
-
-    const { produto, cor, grade, foto } = produtoContext;
-    const quantidade = normalizeQuantidade(item.quantidade);
-    const acrescimoCor = roundMoney(parseMoney(cor.acrescimo));
-    const acrescimoGrade = roundMoney(parseMoney(grade.acrescimo));
-    const precoBase = roundMoney(parseMoney(produto.preco_base));
-    const precoUnitario = roundMoney(precoBase + acrescimoCor + acrescimoGrade);
-    const subtotal = roundMoney(precoUnitario * quantidade);
-    const fotoProduto = foto ?? null;
-
-    return {
-      ...rawItem,
-      quantidade,
-      preco_unitario: precoUnitario,
-      subtotal,
-      nome_produto: produto.nome,
-      descricao_produto: produto.descricao,
-      foto_produto: fotoProduto,
-      produto: {
-        id_produto: produto.id_produto,
-        nome: produto.nome,
-        descricao: produto.descricao,
-        preco_base: precoBase,
-        foto: fotoProduto,
-      },
-      cor: {
-        id_produto_cor: cor.id_produto_cor,
-        nome: cor.nome,
-        codigo_rgb: cor.codigo_rgb,
-        acrescimo: acrescimoCor,
-      },
-      grade: {
-        id_produto_grade: grade.id_produto_grade,
-        nome: grade.nome,
-        acrescimo: acrescimoGrade,
-      },
-    };
-  }));
+    }),
+  );
 
   return enrichedItems;
 };

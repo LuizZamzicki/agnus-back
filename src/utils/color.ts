@@ -1,4 +1,6 @@
-const isValidRgbChannel = (value: number) => Number.isInteger(value) && value >= 0 && value <= 255;
+const isValidRgbChannel = (value: number) => {
+  return Number.isInteger(value) && value >= 0 && value <= 255;
+};
 
 const toRgbString = (r: number, g: number, b: number) => `rgb(${r},${g},${b})`;
 
@@ -14,9 +16,10 @@ export const normalizeRgbColor = (input: unknown): string | null => {
 
   const hexMatch = value.match(/^#?([a-fA-F0-9]{3}|[a-fA-F0-9]{6})$/);
   if (hexMatch) {
-    const hex = hexMatch[1].length === 3
-      ? hexMatch[1].split("").map((c) => `${c}${c}`).join("")
-      : hexMatch[1];
+    const hex =
+      hexMatch[1].length === 3
+        ? hexMatch[1].split("").map((c) => `${c}${c}`).join("")
+        : hexMatch[1];
     const r = parseInt(hex.slice(0, 2), 16);
     const g = parseInt(hex.slice(2, 4), 16);
     const b = parseInt(hex.slice(4, 6), 16);

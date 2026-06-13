@@ -59,7 +59,9 @@ export function evaluatePasswordStrength(password: string): PasswordStrengthResu
   const score = checks.reduce((total, check) => total + Number(check.passed), 0);
   const percentage = Math.round((score / checks.length) * 100);
   const label = strengthLabels[Math.max(0, Math.min(score - 1, strengthLabels.length - 1))];
-  const suggestions = checks.filter((check) => !check.passed).map((check) => check.label);
+  const suggestions = checks
+    .filter((check) => !check.passed)
+    .map((check) => check.label);
   const requiredChecksPassed =
     checks.find((check) => check.id === "minLength")?.passed === true &&
     checks.find((check) => check.id === "lowercase")?.passed === true &&
