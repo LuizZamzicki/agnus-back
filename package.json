@@ -1,12 +1,12 @@
 {
-  "name": "filmes_2026",
+  "name": "agnus",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/src/server.js",
+    "start": "node dist/server.js",
     "postman:generate": "node scripts/generate-postman-collection.js",
     "test": "jest --runInBand",
     "test:coverage": "jest --runInBand --coverage",

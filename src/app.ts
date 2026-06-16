@@ -30,6 +30,10 @@ app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use('/produto_fotos', express.static(path.resolve(process.cwd(), 'produto_fotos')));
 app.use('/avaliacao_fotos', express.static(path.resolve(process.cwd(), 'avaliacao_fotos')));
 
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 const router: Router = Router();
 
 router.post('/users', UsersController.create);
